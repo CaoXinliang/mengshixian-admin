@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "purpose": "分类媒体后台化前的可审核草稿；不得把本文件当作 CloudBase 已写入记录。",
+  "generatedAt": "2026-09-08",
+  "items": [
+    { "categoryName": "海鲜水产", "assetKey": "seafood", "miniappPath": "/assets/categories/seafood.jpg", "webPath": "categories/seafood.png", "source": "demo", "temporary": true, "version": 1 },
+    { "categoryName": "牛肉类", "assetKey": "beef", "miniappPath": "/assets/categories/beef.jpg", "webPath": "categories/beef.png", "source": "demo", "temporary": true, "version": 1 },
+    { "categoryName": "猪肉类", "assetKey": "pork-ai-v1", "miniappPath": "/assets/categories/pork-ai-v1.jpg", "webPath": "categories/pork-ai-v1.jpg", "source": "ai_generated", "temporary": true, "version": 1 },
+    { "categoryName": "羊肉类", "assetKey": "lamb-ai-v1", "miniappPath": "/assets/categories/lamb-ai-v1.jpg", "webPath": "categories/lamb-ai-v1.jpg", "source": "ai_generated", "temporary": true, "version": 1 },
+    { "categoryName": "禽肉类", "assetKey": "chicken", "miniappPath": "/assets/categories/chicken.jpg", "webPath": "categories/chicken.png", "source": "demo", "temporary": true, "version": 1 },
+    { "categoryName": "丸滑类", "assetKey": "balls", "miniappPath": "/assets/categories/balls.jpg", "webPath": "categories/balls.png", "source": "demo", "temporary": true, "version": 1 },
+    { "categoryName": "面点类", "assetKey": "dumpling", "miniappPath": "/assets/categories/dumpling.jpg", "webPath": "categories/dumpling.png", "source": "demo", "temporary": true, "version": 1 },
+    { "categoryName": "预制菜熟食", "assetKey": "prepared-food-ai-v1", "miniappPath": "/assets/categories/prepared-food-ai-v1.jpg", "webPath": "categories/prepared-food-ai-v1.jpg", "source": "ai_generated", "temporary": true, "version": 1 },
+    { "categoryName": "烧烤炸品", "assetKey": "barbecue-fried-ai-v1", "miniappPath": "/assets/categories/barbecue-fried-ai-v1.jpg", "webPath": "categories/barbecue-fried-ai-v1.jpg", "source": "ai_generated", "temporary": true, "version": 1 },
+    { "categoryName": "蔬菜类", "assetKey": "vegetables", "miniappPath": "/assets/categories/vegetables.jpg", "webPath": "categories/vegetables.png", "source": "demo", "temporary": true, "version": 1 },
+    { "categoryName": "调味酱料", "assetKey": "sauces", "miniappPath": "/assets/categories/sauces.jpg", "webPath": "categories/sauces.png", "source": "demo", "temporary": true, "version": 1 },
+    { "categoryName": "甜品类", "assetKey": "desserts", "miniappPath": "/assets/categories/desserts.jpg", "webPath": "categories/desserts.png", "source": "demo", "temporary": true, "version": 1 },
+    { "categoryName": "其他冻品", "assetKey": "other-frozen-ai-v1", "miniappPath": "/assets/categories/other-frozen-ai-v1.jpg", "webPath": "categories/other-frozen-ai-v1.jpg", "source": "ai_generated", "temporary": true, "version": 1 },
+    { "categoryName": "耗材", "assetKey": "supplies-ai-v1", "miniappPath": "/assets/categories/supplies-ai-v1.jpg", "webPath": "categories/supplies-ai-v1.jpg", "source": "ai_generated", "temporary": true, "version": 1 }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "purpose": "测试环境首页内容草稿；素材均为现有演示素材，必须保持 temporary=true，甲方正式素材到位后以媒体新版本替换。",
+  "generatedAt": "2026-09-08",
+  "assets": [
+    { "assetKey": "home-hero-v2", "name": "首页主轮播临时素材 v1", "miniappPath": "/assets/products/frozen-hero-v2.jpg", "source": "demo", "temporary": true, "version": 1 },
+    { "assetKey": "home-seafood-v2", "name": "首页海鲜轮播临时素材 v1", "miniappPath": "/assets/products/frozen-shrimp-pack-v2.jpg", "source": "demo", "temporary": true, "version": 1 },
+    { "assetKey": "home-beef-v2", "name": "首页肉类轮播临时素材 v1", "miniappPath": "/assets/products/frozen-beef-pack-v2.jpg", "source": "demo", "temporary": true, "version": 1 }
+  ],
+  "banners": [
+    { "contentKey": "home-banner-hero", "title": "梦食鲜冷链食材", "assetKey": "home-hero-v2", "sort": 1 },
+    { "contentKey": "home-banner-seafood", "title": "海鲜水产", "assetKey": "home-seafood-v2", "sort": 2 },
+    { "contentKey": "home-banner-meat", "title": "牛羊肉类", "assetKey": "home-beef-v2", "sort": 3 }
+  ],
+  "homeSections": [
+    { "contentKey": "home-section-news", "moduleType": "news", "title": "活动头条", "subtitle": "商品信息持续更新中", "linkText": "更多", "sort": 1 },
+    { "contentKey": "home-section-special", "moduleType": "special", "title": "精选商品", "subtitle": "登录后查看价格", "linkText": "更多", "sort": 2 },
+    { "contentKey": "home-section-group", "moduleType": "group", "title": "拼团活动", "subtitle": "活动以后台实际配置为准", "linkText": "更多", "sort": 3 }
+  ]
+}

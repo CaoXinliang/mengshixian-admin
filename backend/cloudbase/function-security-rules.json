@@ -1,0 +1,11 @@
+{
+  "*": {
+    "invoke": false
+  },
+  "api": {
+    "invoke": true
+  },
+  "maintenance": {
+    "invoke": false
+  }
+}

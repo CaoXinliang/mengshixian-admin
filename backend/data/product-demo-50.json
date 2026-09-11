@@ -1,0 +1,2982 @@
+{
+  "generatedAt": "2026-09-09T11:26:14.948Z",
+  "sourcePath": "backend/data/product-staging.json",
+  "count": 50,
+  "source": "ai_generated",
+  "temporary": true,
+  "status": "demo_review_required",
+  "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+  "rows": [
+    {
+      "sourceRowNo": 2,
+      "source": {
+        "id": 1,
+        "name": "黄金鲍鱼肉",
+        "category": "海鲜水产",
+        "unit": "1件/20包/500克；品名规格：15头"
+      },
+      "parsed": {
+        "name": "黄金鲍鱼肉",
+        "categoryName": "海鲜水产",
+        "specName": "15头",
+        "packageUnit": "1件/20包/500克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 7027,
+        "demoInitialStock": 31,
+        "demoSkus": [
+          {
+            "key": "retail",
+            "specName": "500g/包",
+            "packageUnit": "1包",
+            "amountCent": 7027,
+            "initialStock": 31,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "20包/件",
+            "packageUnit": "1件",
+            "amountCent": 133513,
+            "initialStock": 15,
+            "sort": 10
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 7027,
+        "initialStock": 31,
+        "skus": [
+          {
+            "key": "retail",
+            "specName": "500g/包",
+            "packageUnit": "1包",
+            "amountCent": 7027,
+            "initialStock": 31,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "20包/件",
+            "packageUnit": "1件",
+            "amountCent": 133513,
+            "initialStock": 15,
+            "sort": 10
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 3,
+      "source": {
+        "id": 2,
+        "name": "黄金鲍",
+        "category": "海鲜水产",
+        "unit": "1件/25包/500g；品名规格：25头"
+      },
+      "parsed": {
+        "name": "黄金鲍",
+        "categoryName": "海鲜水产",
+        "specName": "25头",
+        "packageUnit": "1件/25包/500g",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 7177,
+        "demoInitialStock": 32,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "25头",
+            "packageUnit": "1件/25包/500g",
+            "amountCent": 7177,
+            "initialStock": 32,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 7177,
+        "initialStock": 32,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "25头",
+            "packageUnit": "1件/25包/500g",
+            "amountCent": 7177,
+            "initialStock": 32,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 4,
+      "source": {
+        "id": 3,
+        "name": "鲍鱼",
+        "category": "海鲜水产",
+        "unit": "1件/20包/500克；品名规格：30头"
+      },
+      "parsed": {
+        "name": "鲍鱼",
+        "categoryName": "海鲜水产",
+        "specName": "30头",
+        "packageUnit": "1件/20包/500克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 7327,
+        "demoInitialStock": 33,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "30头",
+            "packageUnit": "1件/20包/500g",
+            "amountCent": 7327,
+            "initialStock": 33,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 7327,
+        "initialStock": 33,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "30头",
+            "packageUnit": "1件/20包/500g",
+            "amountCent": 7327,
+            "initialStock": 33,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 7,
+      "source": {
+        "id": 6,
+        "name": "（东）西鳞鱼籽 红",
+        "category": "海鲜水产",
+        "unit": "1件/4盒/2包/850克"
+      },
+      "parsed": {
+        "name": "（东）西鳞鱼籽 红",
+        "categoryName": "海鲜水产",
+        "specName": "",
+        "packageUnit": "1件/4盒/2包/850克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 7551,
+        "demoInitialStock": 36,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/4盒/2包/850g",
+            "packageUnit": "1件/4盒/2包/850g",
+            "amountCent": 7551,
+            "initialStock": 36,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 7551,
+        "initialStock": 36,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/4盒/2包/850g",
+            "packageUnit": "1件/4盒/2包/850g",
+            "amountCent": 7551,
+            "initialStock": 36,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 8,
+      "source": {
+        "id": 7,
+        "name": "（东）西鳞鱼籽 黄",
+        "category": "海鲜水产",
+        "unit": "1件/4盒/2包/850克"
+      },
+      "parsed": {
+        "name": "（东）西鳞鱼籽 黄",
+        "categoryName": "海鲜水产",
+        "specName": "",
+        "packageUnit": "1件/4盒/2包/850克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 7701,
+        "demoInitialStock": 37,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/4盒/2包/850g",
+            "packageUnit": "1件/4盒/2包/850g",
+            "amountCent": 7701,
+            "initialStock": 37,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 7701,
+        "initialStock": 37,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/4盒/2包/850g",
+            "packageUnit": "1件/4盒/2包/850g",
+            "amountCent": 7701,
+            "initialStock": 37,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 9,
+      "source": {
+        "id": 8,
+        "name": "（黑箱）2A金枪鱼",
+        "category": "海鲜水产",
+        "unit": "1*10KG/件"
+      },
+      "parsed": {
+        "name": "（黑箱）2A金枪鱼",
+        "categoryName": "海鲜水产",
+        "specName": "",
+        "packageUnit": "1*10KG/件",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 7851,
+        "demoInitialStock": 38,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1*10KG/件",
+            "packageUnit": "1*10KG/件",
+            "amountCent": 7851,
+            "initialStock": 38,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 7851,
+        "initialStock": 38,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1*10KG/件",
+            "packageUnit": "1*10KG/件",
+            "amountCent": 7851,
+            "initialStock": 38,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 10,
+      "source": {
+        "id": 9,
+        "name": "（吉食尚）粉丝带子",
+        "category": "海鲜水产",
+        "unit": "1件/10包/10个"
+      },
+      "parsed": {
+        "name": "（吉食尚）粉丝带子",
+        "categoryName": "海鲜水产",
+        "specName": "",
+        "packageUnit": "1件/10包/10个",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 8001,
+        "demoInitialStock": 39,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/10包/10个",
+            "packageUnit": "1件/10包/10个",
+            "amountCent": 8001,
+            "initialStock": 39,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 8001,
+        "initialStock": 39,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/10包/10个",
+            "packageUnit": "1件/10包/10个",
+            "amountCent": 8001,
+            "initialStock": 39,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 28,
+      "source": {
+        "id": 27,
+        "name": "巴沙鱼柳（纯干）",
+        "category": "海鲜水产",
+        "unit": "1件/4包/5斤"
+      },
+      "parsed": {
+        "name": "巴沙鱼柳（纯干）",
+        "categoryName": "海鲜水产",
+        "specName": "",
+        "packageUnit": "1件/4包/5斤",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 8780,
+        "demoInitialStock": 57,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/4包/5斤",
+            "packageUnit": "1件/4包/5斤",
+            "amountCent": 8780,
+            "initialStock": 57,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 8780,
+        "initialStock": 57,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/4包/5斤",
+            "packageUnit": "1件/4包/5斤",
+            "amountCent": 8780,
+            "initialStock": 57,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 30,
+      "source": {
+        "id": 29,
+        "name": "半边白鱼",
+        "category": "海鲜水产",
+        "unit": "1件/20条/700-800克"
+      },
+      "parsed": {
+        "name": "半边白鱼",
+        "categoryName": "海鲜水产",
+        "specName": "",
+        "packageUnit": "1件/20条/700-800克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 7167,
+        "demoInitialStock": 59,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/20条/700-800g",
+            "packageUnit": "1件/20条/700-800g",
+            "amountCent": 7167,
+            "initialStock": 59,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 7167,
+        "initialStock": 59,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/20条/700-800g",
+            "packageUnit": "1件/20条/700-800g",
+            "amountCent": 7167,
+            "initialStock": 59,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 31,
+      "source": {
+        "id": 30,
+        "name": "半边白鱼",
+        "category": "海鲜水产",
+        "unit": "1件/18条；品名规格：600-700克"
+      },
+      "parsed": {
+        "name": "半边白鱼",
+        "categoryName": "海鲜水产",
+        "specName": "600-700克",
+        "packageUnit": "1件/18条",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 7317,
+        "demoInitialStock": 60,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "600-700g",
+            "packageUnit": "1件/18条",
+            "amountCent": 7317,
+            "initialStock": 60,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 7317,
+        "initialStock": 60,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "600-700g",
+            "packageUnit": "1件/18条",
+            "amountCent": 7317,
+            "initialStock": 60,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 40,
+      "source": {
+        "id": 39,
+        "name": "波士顿龙虾",
+        "category": "海鲜水产",
+        "unit": "称重"
+      },
+      "parsed": {
+        "name": "波士顿龙虾",
+        "categoryName": "海鲜水产",
+        "specName": "",
+        "packageUnit": "称重",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 7763,
+        "demoInitialStock": 69,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "称重",
+            "packageUnit": "称重",
+            "amountCent": 7763,
+            "initialStock": 69,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 7763,
+        "initialStock": 69,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "称重",
+            "packageUnit": "称重",
+            "amountCent": 7763,
+            "initialStock": 69,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 50,
+      "source": {
+        "id": 49,
+        "name": "雕花鱿鱼",
+        "category": "海鲜水产",
+        "unit": "1件/10包/500克"
+      },
+      "parsed": {
+        "name": "雕花鱿鱼",
+        "categoryName": "海鲜水产",
+        "specName": "",
+        "packageUnit": "1件/10包/500克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 8246,
+        "demoInitialStock": 38,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/10包/500g",
+            "packageUnit": "1件/10包/500g",
+            "amountCent": 8246,
+            "initialStock": 38,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 8246,
+        "initialStock": 38,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/10包/500g",
+            "packageUnit": "1件/10包/500g",
+            "amountCent": 8246,
+            "initialStock": 38,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 5,
+      "source": {
+        "id": 4,
+        "name": "全形豆角",
+        "category": "蔬菜类",
+        "unit": "1包/7斤装"
+      },
+      "parsed": {
+        "name": "全形豆角",
+        "categoryName": "蔬菜类",
+        "specName": "",
+        "packageUnit": "1包/7斤装",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 2738,
+        "demoInitialStock": 34,
+        "demoSkus": [
+          {
+            "key": "retail",
+            "specName": "7斤",
+            "packageUnit": "份",
+            "amountCent": 2738,
+            "initialStock": 34,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "7斤×2",
+            "packageUnit": "1件",
+            "amountCent": 5202,
+            "initialStock": 17,
+            "sort": 10
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 2738,
+        "initialStock": 34,
+        "skus": [
+          {
+            "key": "retail",
+            "specName": "7斤",
+            "packageUnit": "份",
+            "amountCent": 2738,
+            "initialStock": 34,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "7斤×2",
+            "packageUnit": "1件",
+            "amountCent": 5202,
+            "initialStock": 17,
+            "sort": 10
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 6,
+      "source": {
+        "id": 5,
+        "name": "A级香芋条",
+        "category": "蔬菜类",
+        "unit": "1件/10包/1.5KG"
+      },
+      "parsed": {
+        "name": "A级香芋条",
+        "categoryName": "蔬菜类",
+        "specName": "",
+        "packageUnit": "1件/10包/1.5KG",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 2888,
+        "demoInitialStock": 35,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/10包/1.5KG",
+            "packageUnit": "1件/10包/1.5KG",
+            "amountCent": 2888,
+            "initialStock": 35,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 2888,
+        "initialStock": 35,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/10包/1.5KG",
+            "packageUnit": "1件/10包/1.5KG",
+            "amountCent": 2888,
+            "initialStock": 35,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 11,
+      "source": {
+        "id": 10,
+        "name": "（李家厨）个性三脆",
+        "category": "其他冻品",
+        "unit": "1件/25包/325克"
+      },
+      "parsed": {
+        "name": "（李家厨）个性三脆",
+        "categoryName": "其他冻品",
+        "specName": "",
+        "packageUnit": "1件/25包/325克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 3960,
+        "demoInitialStock": 40,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/25包/325g",
+            "packageUnit": "1件/25包/325g",
+            "amountCent": 3960,
+            "initialStock": 40,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 3960,
+        "initialStock": 40,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/25包/325g",
+            "packageUnit": "1件/25包/325g",
+            "amountCent": 3960,
+            "initialStock": 40,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 13,
+      "source": {
+        "id": 12,
+        "name": "（饷之澄）手抓扇子骨",
+        "category": "猪肉类",
+        "unit": "1件/10包/10根"
+      },
+      "parsed": {
+        "name": "（饷之澄）手抓扇子骨",
+        "categoryName": "猪肉类",
+        "specName": "",
+        "packageUnit": "1件/10包/10根",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 5034,
+        "demoInitialStock": 42,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/10包/10根",
+            "packageUnit": "1件/10包/10根",
+            "amountCent": 5034,
+            "initialStock": 42,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 5034,
+        "initialStock": 42,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/10包/10根",
+            "packageUnit": "1件/10包/10根",
+            "amountCent": 5034,
+            "initialStock": 42,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 14,
+      "source": {
+        "id": 13,
+        "name": "（饷之澄）手抓扇子骨",
+        "category": "猪肉类",
+        "unit": "1件/10包/12根"
+      },
+      "parsed": {
+        "name": "（饷之澄）手抓扇子骨",
+        "categoryName": "猪肉类",
+        "specName": "",
+        "packageUnit": "1件/10包/12根",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 5184,
+        "demoInitialStock": 43,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/10包/12根",
+            "packageUnit": "1件/10包/12根",
+            "amountCent": 5184,
+            "initialStock": 43,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 5184,
+        "initialStock": 43,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/10包/12根",
+            "packageUnit": "1件/10包/12根",
+            "amountCent": 5184,
+            "initialStock": 43,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 45,
+      "source": {
+        "id": 44,
+        "name": "脆皮乳猪",
+        "category": "猪肉类",
+        "unit": "1*10只；品名规格：4.5斤"
+      },
+      "parsed": {
+        "name": "脆皮乳猪",
+        "categoryName": "猪肉类",
+        "specName": "4.5斤",
+        "packageUnit": "1*10只",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 4644,
+        "demoInitialStock": 33,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "4.5斤",
+            "packageUnit": "1*10只",
+            "amountCent": 4644,
+            "initialStock": 33,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 4644,
+        "initialStock": 33,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "4.5斤",
+            "packageUnit": "1*10只",
+            "amountCent": 4644,
+            "initialStock": 33,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 53,
+      "source": {
+        "id": 52,
+        "name": "对开猪手",
+        "category": "猪肉类",
+        "unit": "10kg"
+      },
+      "parsed": {
+        "name": "对开猪手",
+        "categoryName": "猪肉类",
+        "specName": "",
+        "packageUnit": "10kg",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 5053,
+        "demoInitialStock": 41,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "10kg",
+            "packageUnit": "10kg",
+            "amountCent": 5053,
+            "initialStock": 41,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 5053,
+        "initialStock": 41,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "10kg",
+            "packageUnit": "10kg",
+            "amountCent": 5053,
+            "initialStock": 41,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 66,
+      "source": {
+        "id": 65,
+        "name": "和办猪肉胶",
+        "category": "猪肉类",
+        "unit": "1件/2包/10斤"
+      },
+      "parsed": {
+        "name": "和办猪肉胶",
+        "categoryName": "猪肉类",
+        "specName": "",
+        "packageUnit": "1件/2包/10斤",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 5647,
+        "demoInitialStock": 54,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/2包/10斤",
+            "packageUnit": "1件/2包/10斤",
+            "amountCent": 5647,
+            "initialStock": 54,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 5647,
+        "initialStock": 54,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/2包/10斤",
+            "packageUnit": "1件/2包/10斤",
+            "amountCent": 5647,
+            "initialStock": 54,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 15,
+      "source": {
+        "id": 14,
+        "name": "阿诺红糖发糕",
+        "category": "面点类",
+        "unit": "1件/15包/360克"
+      },
+      "parsed": {
+        "name": "阿诺红糖发糕",
+        "categoryName": "面点类",
+        "specName": "",
+        "packageUnit": "1件/15包/360克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 2808,
+        "demoInitialStock": 44,
+        "demoSkus": [
+          {
+            "key": "retail",
+            "specName": "360g/包",
+            "packageUnit": "1包",
+            "amountCent": 2808,
+            "initialStock": 44,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "15包/件",
+            "packageUnit": "1件",
+            "amountCent": 40014,
+            "initialStock": 22,
+            "sort": 10
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 2808,
+        "initialStock": 44,
+        "skus": [
+          {
+            "key": "retail",
+            "specName": "360g/包",
+            "packageUnit": "1包",
+            "amountCent": 2808,
+            "initialStock": 44,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "15包/件",
+            "packageUnit": "1件",
+            "amountCent": 40014,
+            "initialStock": 22,
+            "sort": 10
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 20,
+      "source": {
+        "id": 19,
+        "name": "阿诺红糖发糕",
+        "category": "面点类",
+        "unit": "1件/12包/600克"
+      },
+      "parsed": {
+        "name": "阿诺红糖发糕",
+        "categoryName": "面点类",
+        "specName": "",
+        "packageUnit": "1件/12包/600克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 3106,
+        "demoInitialStock": 49,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/12包/600g",
+            "packageUnit": "1件/12包/600g",
+            "amountCent": 3106,
+            "initialStock": 49,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 3106,
+        "initialStock": 49,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/12包/600g",
+            "packageUnit": "1件/12包/600g",
+            "amountCent": 3106,
+            "initialStock": 49,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 23,
+      "source": {
+        "id": 22,
+        "name": "阿诺小厨黄色米网皮",
+        "category": "面点类",
+        "unit": "1件/12包/415克；品名规格：18个"
+      },
+      "parsed": {
+        "name": "阿诺小厨黄色米网皮",
+        "categoryName": "面点类",
+        "specName": "18个",
+        "packageUnit": "1件/12包/415克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 3330,
+        "demoInitialStock": 52,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "18个",
+            "packageUnit": "1件/12包/415g",
+            "amountCent": 3330,
+            "initialStock": 52,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 3330,
+        "initialStock": 52,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "18个",
+            "packageUnit": "1件/12包/415g",
+            "amountCent": 3330,
+            "initialStock": 52,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 24,
+      "source": {
+        "id": 23,
+        "name": "安井核桃包",
+        "category": "面点类",
+        "unit": "1件/10包/360克"
+      },
+      "parsed": {
+        "name": "安井核桃包",
+        "categoryName": "面点类",
+        "specName": "",
+        "packageUnit": "1件/10包/360克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 3480,
+        "demoInitialStock": 53,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/10包/360g",
+            "packageUnit": "1件/10包/360g",
+            "amountCent": 3480,
+            "initialStock": 53,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 3480,
+        "initialStock": 53,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/10包/360g",
+            "packageUnit": "1件/10包/360g",
+            "amountCent": 3480,
+            "initialStock": 53,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 26,
+      "source": {
+        "id": 25,
+        "name": "安井奶香玉米包",
+        "category": "面点类",
+        "unit": "1件/12包/360G"
+      },
+      "parsed": {
+        "name": "安井奶香玉米包",
+        "categoryName": "面点类",
+        "specName": "",
+        "packageUnit": "1件/12包/360G",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 3667,
+        "demoInitialStock": 55,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/12包/360G",
+            "packageUnit": "1件/12包/360G",
+            "amountCent": 3667,
+            "initialStock": 55,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 3667,
+        "initialStock": 55,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/12包/360G",
+            "packageUnit": "1件/12包/360G",
+            "amountCent": 3667,
+            "initialStock": 55,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 36,
+      "source": {
+        "id": 35,
+        "name": "北记苹果包",
+        "category": "面点类",
+        "unit": "1件/15包/350克"
+      },
+      "parsed": {
+        "name": "北记苹果包",
+        "categoryName": "面点类",
+        "specName": "",
+        "packageUnit": "1件/15包/350克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 2350,
+        "demoInitialStock": 65,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/15包/350g",
+            "packageUnit": "1件/15包/350g",
+            "amountCent": 2350,
+            "initialStock": 65,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 2350,
+        "initialStock": 65,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/15包/350g",
+            "packageUnit": "1件/15包/350g",
+            "amountCent": 2350,
+            "initialStock": 65,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 39,
+      "source": {
+        "id": 38,
+        "name": "菠萝包",
+        "category": "面点类",
+        "unit": "1件/12包/380G/10个"
+      },
+      "parsed": {
+        "name": "菠萝包",
+        "categoryName": "面点类",
+        "specName": "",
+        "packageUnit": "1件/12包/380G/10个",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 2574,
+        "demoInitialStock": 68,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/12包/380G/10个",
+            "packageUnit": "1件/12包/380G/10个",
+            "amountCent": 2574,
+            "initialStock": 68,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 2574,
+        "initialStock": 68,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/12包/380G/10个",
+            "packageUnit": "1件/12包/380G/10个",
+            "amountCent": 2574,
+            "initialStock": 68,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 16,
+      "source": {
+        "id": 15,
+        "name": "阿诺爆浆麻薯",
+        "category": "甜品类",
+        "unit": "1件/12包/10个"
+      },
+      "parsed": {
+        "name": "阿诺爆浆麻薯",
+        "categoryName": "甜品类",
+        "specName": "",
+        "packageUnit": "1件/12包/10个",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 3245,
+        "demoInitialStock": 45,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/12包/10个",
+            "packageUnit": "1件/12包/10个",
+            "amountCent": 3245,
+            "initialStock": 45,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 3245,
+        "initialStock": 45,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/12包/10个",
+            "packageUnit": "1件/12包/10个",
+            "amountCent": 3245,
+            "initialStock": 45,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 17,
+      "source": {
+        "id": 16,
+        "name": "阿诺春野三色",
+        "category": "甜品类",
+        "unit": "1件/15包/15个"
+      },
+      "parsed": {
+        "name": "阿诺春野三色",
+        "categoryName": "甜品类",
+        "specName": "",
+        "packageUnit": "1件/15包/15个",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 3395,
+        "demoInitialStock": 46,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/15包/15个",
+            "packageUnit": "1件/15包/15个",
+            "amountCent": 3395,
+            "initialStock": 46,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 3395,
+        "initialStock": 46,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/15包/15个",
+            "packageUnit": "1件/15包/15个",
+            "amountCent": 3395,
+            "initialStock": 46,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 18,
+      "source": {
+        "id": 17,
+        "name": "阿诺脆皮泡芙",
+        "category": "甜品类",
+        "unit": "1件/10包/10个；品名规格：250克"
+      },
+      "parsed": {
+        "name": "阿诺脆皮泡芙",
+        "categoryName": "甜品类",
+        "specName": "250克",
+        "packageUnit": "1件/10包/10个",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 3545,
+        "demoInitialStock": 47,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "250g",
+            "packageUnit": "1件/10包/10个",
+            "amountCent": 3545,
+            "initialStock": 47,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 3545,
+        "initialStock": 47,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "250g",
+            "packageUnit": "1件/10包/10个",
+            "amountCent": 3545,
+            "initialStock": 47,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 19,
+      "source": {
+        "id": 18,
+        "name": "阿诺脆皮酸奶卷",
+        "category": "甜品类",
+        "unit": "1件/12包/280克"
+      },
+      "parsed": {
+        "name": "阿诺脆皮酸奶卷",
+        "categoryName": "甜品类",
+        "specName": "",
+        "packageUnit": "1件/12包/280克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 3695,
+        "demoInitialStock": 48,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/12包/280g",
+            "packageUnit": "1件/12包/280g",
+            "amountCent": 3695,
+            "initialStock": 48,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 3695,
+        "initialStock": 48,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/12包/280g",
+            "packageUnit": "1件/12包/280g",
+            "amountCent": 3695,
+            "initialStock": 48,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 25,
+      "source": {
+        "id": 24,
+        "name": "安井火山石烤肠(A级原味)",
+        "category": "烧烤炸品",
+        "unit": "1件/20包/700克"
+      },
+      "parsed": {
+        "name": "安井火山石烤肠(A级原味)",
+        "categoryName": "烧烤炸品",
+        "specName": "",
+        "packageUnit": "1件/20包/700克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 4178,
+        "demoInitialStock": 54,
+        "demoSkus": [
+          {
+            "key": "retail",
+            "specName": "700g/包",
+            "packageUnit": "1包",
+            "amountCent": 4178,
+            "initialStock": 54,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "20包/件",
+            "packageUnit": "1件",
+            "amountCent": 79382,
+            "initialStock": 27,
+            "sort": 10
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 4178,
+        "initialStock": 54,
+        "skus": [
+          {
+            "key": "retail",
+            "specName": "700g/包",
+            "packageUnit": "1包",
+            "amountCent": 4178,
+            "initialStock": 54,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "20包/件",
+            "packageUnit": "1件",
+            "amountCent": 79382,
+            "initialStock": 27,
+            "sort": 10
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 27,
+      "source": {
+        "id": 26,
+        "name": "澳洲原切雪花肥牛",
+        "category": "牛肉类",
+        "unit": "称重"
+      },
+      "parsed": {
+        "name": "澳洲原切雪花肥牛",
+        "categoryName": "牛肉类",
+        "specName": "",
+        "packageUnit": "称重",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 6952,
+        "demoInitialStock": 56,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "称重",
+            "packageUnit": "称重",
+            "amountCent": 6952,
+            "initialStock": 56,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 6952,
+        "initialStock": 56,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "称重",
+            "packageUnit": "称重",
+            "amountCent": 6952,
+            "initialStock": 56,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 32,
+      "source": {
+        "id": 31,
+        "name": "半排（小牛排）",
+        "category": "牛肉类",
+        "unit": "1.5斤*12片/件"
+      },
+      "parsed": {
+        "name": "半排（小牛排）",
+        "categoryName": "牛肉类",
+        "specName": "",
+        "packageUnit": "1.5斤*12片/件",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 7250,
+        "demoInitialStock": 61,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1.5斤*12片/件",
+            "packageUnit": "1.5斤*12片/件",
+            "amountCent": 7250,
+            "initialStock": 61,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 7250,
+        "initialStock": 61,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1.5斤*12片/件",
+            "packageUnit": "1.5斤*12片/件",
+            "amountCent": 7250,
+            "initialStock": 61,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 33,
+      "source": {
+        "id": 32,
+        "name": "小牛腿",
+        "category": "牛肉类",
+        "unit": "1件/10包/2斤左右"
+      },
+      "parsed": {
+        "name": "小牛腿",
+        "categoryName": "牛肉类",
+        "specName": "",
+        "packageUnit": "1件/10包/2斤左右",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 7400,
+        "demoInitialStock": 62,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/10包/2斤左右",
+            "packageUnit": "1件/10包/2斤左右",
+            "amountCent": 7400,
+            "initialStock": 62,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 7400,
+        "initialStock": 62,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/10包/2斤左右",
+            "packageUnit": "1件/10包/2斤左右",
+            "amountCent": 7400,
+            "initialStock": 62,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 44,
+      "source": {
+        "id": 43,
+        "name": "聪厨干锅牛杂",
+        "category": "牛肉类",
+        "unit": "1件/40包/250克"
+      },
+      "parsed": {
+        "name": "聪厨干锅牛杂",
+        "categoryName": "牛肉类",
+        "specName": "",
+        "packageUnit": "1件/40包/250克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 6120,
+        "demoInitialStock": 32,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/40包/250g",
+            "packageUnit": "1件/40包/250g",
+            "amountCent": 6120,
+            "initialStock": 32,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 6120,
+        "initialStock": 32,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/40包/250g",
+            "packageUnit": "1件/40包/250g",
+            "amountCent": 6120,
+            "initialStock": 32,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 48,
+      "source": {
+        "id": 47,
+        "name": "带皮小黄牛",
+        "category": "牛肉类",
+        "unit": "1件/40斤/称重"
+      },
+      "parsed": {
+        "name": "带皮小黄牛",
+        "categoryName": "牛肉类",
+        "specName": "",
+        "packageUnit": "1件/40斤/称重",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 6381,
+        "demoInitialStock": 36,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/40斤/称重",
+            "packageUnit": "1件/40斤/称重",
+            "amountCent": 6381,
+            "initialStock": 36,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 6381,
+        "initialStock": 36,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/40斤/称重",
+            "packageUnit": "1件/40斤/称重",
+            "amountCent": 6381,
+            "initialStock": 36,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 34,
+      "source": {
+        "id": 33,
+        "name": "包心鱼丸",
+        "category": "丸滑类",
+        "unit": "2.5kg*4"
+      },
+      "parsed": {
+        "name": "包心鱼丸",
+        "categoryName": "丸滑类",
+        "specName": "",
+        "packageUnit": "2.5kg*4",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 4111,
+        "demoInitialStock": 63,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "2.5kg*4",
+            "packageUnit": "2.5kg*4",
+            "amountCent": 4111,
+            "initialStock": 63,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 4111,
+        "initialStock": 63,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "2.5kg*4",
+            "packageUnit": "2.5kg*4",
+            "amountCent": 4111,
+            "initialStock": 63,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 35,
+      "source": {
+        "id": 34,
+        "name": "保鲜青花椒",
+        "category": "调味酱料",
+        "unit": "1件/60包/300g"
+      },
+      "parsed": {
+        "name": "保鲜青花椒",
+        "categoryName": "调味酱料",
+        "specName": "",
+        "packageUnit": "1件/60包/300g",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 3248,
+        "demoInitialStock": 64,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/60包/300g",
+            "packageUnit": "1件/60包/300g",
+            "amountCent": 3248,
+            "initialStock": 64,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 3248,
+        "initialStock": 64,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/60包/300g",
+            "packageUnit": "1件/60包/300g",
+            "amountCent": 3248,
+            "initialStock": 64,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 70,
+      "source": {
+        "id": 69,
+        "name": "黑松露",
+        "category": "调味酱料",
+        "unit": "1斤"
+      },
+      "parsed": {
+        "name": "黑松露",
+        "categoryName": "调味酱料",
+        "specName": "",
+        "packageUnit": "1斤",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 2856,
+        "demoInitialStock": 58,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1斤",
+            "packageUnit": "1斤",
+            "amountCent": 2856,
+            "initialStock": 58,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 2856,
+        "initialStock": 58,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1斤",
+            "packageUnit": "1斤",
+            "amountCent": 2856,
+            "initialStock": 58,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 101,
+      "source": {
+        "id": 100,
+        "name": "老坛脆椒酱",
+        "category": "调味酱料",
+        "unit": "1件/16包/500克"
+      },
+      "parsed": {
+        "name": "老坛脆椒酱",
+        "categoryName": "调味酱料",
+        "specName": "",
+        "packageUnit": "1件/16包/500克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 2316,
+        "demoInitialStock": 48,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/16包/500g",
+            "packageUnit": "1件/16包/500g",
+            "amountCent": 2316,
+            "initialStock": 48,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 2316,
+        "initialStock": 48,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/16包/500g",
+            "packageUnit": "1件/16包/500g",
+            "amountCent": 2316,
+            "initialStock": 48,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 38,
+      "source": {
+        "id": 37,
+        "name": "北京四系填鸭胚",
+        "category": "禽肉类",
+        "unit": "1件/4只/4.5斤"
+      },
+      "parsed": {
+        "name": "北京四系填鸭胚",
+        "categoryName": "禽肉类",
+        "specName": "",
+        "packageUnit": "1件/4只/4.5斤",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 5359,
+        "demoInitialStock": 67,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/4只/4.5斤",
+            "packageUnit": "1件/4只/4.5斤",
+            "amountCent": 5359,
+            "initialStock": 67,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 5359,
+        "initialStock": 67,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/4只/4.5斤",
+            "packageUnit": "1件/4只/4.5斤",
+            "amountCent": 5359,
+            "initialStock": 67,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 42,
+      "source": {
+        "id": 41,
+        "name": "诚宴好吃鸡",
+        "category": "禽肉类",
+        "unit": "1件/12只/1.4斤左右"
+      },
+      "parsed": {
+        "name": "诚宴好吃鸡",
+        "categoryName": "禽肉类",
+        "specName": "",
+        "packageUnit": "1件/12只/1.4斤左右",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 5620,
+        "demoInitialStock": 30,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/12只/1.4斤左右",
+            "packageUnit": "1件/12只/1.4斤左右",
+            "amountCent": 5620,
+            "initialStock": 30,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 5620,
+        "initialStock": 30,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/12只/1.4斤左右",
+            "packageUnit": "1件/12只/1.4斤左右",
+            "amountCent": 5620,
+            "initialStock": 30,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 46,
+      "source": {
+        "id": 45,
+        "name": "大号炸凤爪",
+        "category": "禽肉类",
+        "unit": "1件/4包/2.5KG"
+      },
+      "parsed": {
+        "name": "大号炸凤爪",
+        "categoryName": "禽肉类",
+        "specName": "",
+        "packageUnit": "1件/4包/2.5KG",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 4081,
+        "demoInitialStock": 34,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件/4包/2.5KG",
+            "packageUnit": "1件/4包/2.5KG",
+            "amountCent": 4081,
+            "initialStock": 34,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 4081,
+        "initialStock": 34,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件/4包/2.5KG",
+            "packageUnit": "1件/4包/2.5KG",
+            "amountCent": 4081,
+            "initialStock": 34,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 55,
+      "source": {
+        "id": 54,
+        "name": "鹅翅",
+        "category": "禽肉类",
+        "unit": "1件*30斤*15包"
+      },
+      "parsed": {
+        "name": "鹅翅",
+        "categoryName": "禽肉类",
+        "specName": "",
+        "packageUnit": "1件*30斤*15包",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 4527,
+        "demoInitialStock": 43,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "1件*30斤*15包",
+            "packageUnit": "1件*30斤*15包",
+            "amountCent": 4527,
+            "initialStock": 43,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 4527,
+        "initialStock": 43,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "1件*30斤*15包",
+            "packageUnit": "1件*30斤*15包",
+            "amountCent": 4527,
+            "initialStock": 43,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 57,
+      "source": {
+        "id": 56,
+        "name": "法式鹅肝 特A级",
+        "category": "禽肉类",
+        "unit": "称重"
+      },
+      "parsed": {
+        "name": "法式鹅肝 特A级",
+        "categoryName": "禽肉类",
+        "specName": "",
+        "packageUnit": "称重",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 4714,
+        "demoInitialStock": 45,
+        "demoSkus": [
+          {
+            "key": "default",
+            "specName": "称重",
+            "packageUnit": "称重",
+            "amountCent": 4714,
+            "initialStock": 45,
+            "sort": 0
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 4714,
+        "initialStock": 45,
+        "skus": [
+          {
+            "key": "default",
+            "specName": "称重",
+            "packageUnit": "称重",
+            "amountCent": 4714,
+            "initialStock": 45,
+            "sort": 0
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 67,
+      "source": {
+        "id": 66,
+        "name": "黑椒鸡块",
+        "category": "禽肉类",
+        "unit": "1件*10包*1KG"
+      },
+      "parsed": {
+        "name": "黑椒鸡块",
+        "categoryName": "禽肉类",
+        "specName": "",
+        "packageUnit": "1件*10包*1KG",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 5197,
+        "demoInitialStock": 55,
+        "demoSkus": [
+          {
+            "key": "retail",
+            "specName": "1KG/包",
+            "packageUnit": "1包",
+            "amountCent": 5197,
+            "initialStock": 55,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "10包/件",
+            "packageUnit": "1件",
+            "amountCent": 49372,
+            "initialStock": 27,
+            "sort": 10
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 5197,
+        "initialStock": 55,
+        "skus": [
+          {
+            "key": "retail",
+            "specName": "1KG/包",
+            "packageUnit": "1包",
+            "amountCent": 5197,
+            "initialStock": 55,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "10包/件",
+            "packageUnit": "1件",
+            "amountCent": 49372,
+            "initialStock": 27,
+            "sort": 10
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 41,
+      "source": {
+        "id": 40,
+        "name": "参福连吉品佛跳墙",
+        "category": "预制菜熟食",
+        "unit": "1件/12盅/220克"
+      },
+      "parsed": {
+        "name": "参福连吉品佛跳墙",
+        "categoryName": "预制菜熟食",
+        "specName": "",
+        "packageUnit": "1件/12盅/220克",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 4970,
+        "demoInitialStock": 70,
+        "demoSkus": [
+          {
+            "key": "retail",
+            "specName": "220g/盅",
+            "packageUnit": "1盅",
+            "amountCent": 4970,
+            "initialStock": 70,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "12盅/件",
+            "packageUnit": "1件",
+            "amountCent": 56658,
+            "initialStock": 35,
+            "sort": 10
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 4970,
+        "initialStock": 70,
+        "skus": [
+          {
+            "key": "retail",
+            "specName": "220g/盅",
+            "packageUnit": "1盅",
+            "amountCent": 4970,
+            "initialStock": 70,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "12盅/件",
+            "packageUnit": "1件",
+            "amountCent": 56658,
+            "initialStock": 35,
+            "sort": 10
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 49,
+      "source": {
+        "id": 48,
+        "name": "带皮羊切块",
+        "category": "羊肉类",
+        "unit": "称重"
+      },
+      "parsed": {
+        "name": "带皮羊切块",
+        "categoryName": "羊肉类",
+        "specName": "",
+        "packageUnit": "称重",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 7466,
+        "demoInitialStock": 37,
+        "demoSkus": [
+          {
+            "key": "retail",
+            "specName": "500g装",
+            "packageUnit": "500g",
+            "amountCent": 7466,
+            "initialStock": 37,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "1kg装",
+            "packageUnit": "1件",
+            "amountCent": 14185,
+            "initialStock": 18,
+            "sort": 10
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 7466,
+        "initialStock": 37,
+        "skus": [
+          {
+            "key": "retail",
+            "specName": "500g装",
+            "packageUnit": "500g",
+            "amountCent": 7466,
+            "initialStock": 37,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "1kg装",
+            "packageUnit": "1件",
+            "amountCent": 14185,
+            "initialStock": 18,
+            "sort": 10
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    },
+    {
+      "sourceRowNo": 106,
+      "source": {
+        "id": 105,
+        "name": "雷洛滋保鲜膜",
+        "category": "耗材",
+        "unit": "1件/6卷"
+      },
+      "parsed": {
+        "name": "雷洛滋保鲜膜",
+        "categoryName": "耗材",
+        "specName": "",
+        "packageUnit": "1件/6卷",
+        "price": null,
+        "mediaIds": [],
+        "status": "pending_review",
+        "source": "ai_generated",
+        "temporary": true,
+        "demoNote": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。",
+        "demoPriceCent": 1575,
+        "demoInitialStock": 53,
+        "demoSkus": [
+          {
+            "key": "retail",
+            "specName": "1卷",
+            "packageUnit": "1卷",
+            "amountCent": 1575,
+            "initialStock": 53,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "6卷/件",
+            "packageUnit": "1件",
+            "amountCent": 8978,
+            "initialStock": 26,
+            "sort": 10
+          }
+        ]
+      },
+      "mappingWarnings": [
+        "价格未提供，等待甲方确认",
+        "商品图片未提供，等待后台上传真实素材",
+        "原始数据未发现“品名规格”字段，需人工确认规格",
+        "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      ],
+      "status": "staged",
+      "demo": {
+        "source": "ai_generated",
+        "temporary": true,
+        "priceCent": 1575,
+        "initialStock": 53,
+        "skus": [
+          {
+            "key": "retail",
+            "specName": "1卷",
+            "packageUnit": "1卷",
+            "amountCent": 1575,
+            "initialStock": 53,
+            "sort": 0
+          },
+          {
+            "key": "case",
+            "specName": "6卷/件",
+            "packageUnit": "1件",
+            "amountCent": 8978,
+            "initialStock": 26,
+            "sort": 10
+          }
+        ],
+        "note": "AI 生成的演示价格与库存，须由甲方在后台审核替换；不得用于正式交易。"
+      }
+    }
+  ]
+}

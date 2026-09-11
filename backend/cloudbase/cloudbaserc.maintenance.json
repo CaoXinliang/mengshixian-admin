@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "envId": "cloud1-d8gp843lt5454ada7",
+  "functionRoot": "./functions",
+  "functions": [
+    {
+      "name": "maintenance",
+      "runtime": "Nodejs16.13",
+      "timeout": 20,
+      "memorySize": 256,
+      "installDependency": true,
+      "handler": "index.main",
+      "envVariables": {},
+      "triggers": [
+        {
+          "name": "maintenance-every-five-minutes",
+          "type": "timer",
+          "config": "0 */5 * * * * *"
+        }
+      ]
+    }
+  ]
+}
