@@ -8,6 +8,18 @@
   const splitLines = (value) => String(value || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
   const newIdempotencyKey = () => global.crypto && global.crypto.randomUUID ? global.crypto.randomUUID() : `admin-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const activePanel = () => $('.panel.is-active') && $('.panel.is-active').dataset.panel;
+  const modules = {
+    workbench: { label: '工作台', panels: [['overview', '今日概况']] },
+    catalog: { label: '商品中心', panels: [['products', '商品管理'], ['categories', '分类管理'], ['imports', '批量导入'], ['pricing', '价格规则']] },
+    trade: { label: '订单中心', panels: [['orders', '订单履约'], ['refunds', '退款售后']] },
+    fulfillment: { label: '库存配送', panels: [['fulfillment', '库存与配送']] },
+    customers: { label: '客户中心', panels: [['customers', '客户与企业']] },
+    content: { label: '内容运营', panels: [['content', '首页内容'], ['media', '素材库']] },
+    marketing: { label: '营销中心', panels: [['groups', '拼团活动']] },
+    system: { label: '系统管理', panels: [['access', '账号与权限'], ['audit', '操作记录']] }
+  };
+  const panelTitles = { overview: '今日经营概况', imports: '商品批量导入', categories: '商品分类', products: '商品管理', customers: '客户与企业', pricing: '价格规则', fulfillment: '库存、仓库与配送', orders: '订单履约', refunds: '退款售后', groups: '拼团活动', access: '账号与权限', content: '首页内容管理', media: '素材库', audit: '操作记录' };
+  const moduleForPanel = (name) => Object.keys(modules).find((key) => modules[key].panels.some(([panelName]) => panelName === name)) || 'workbench';
   const requestedNext = () => {
     const params = new URLSearchParams(global.location.search || '');
     return params.get('next') === 'simple' ? 'simple' : '';
@@ -56,10 +68,22 @@
     $('#loginShell').classList.add('is-hidden');
     $('#adminShell').classList.remove('is-hidden');
     $('#adminUser').textContent = state.admin ? `${state.admin.displayName} · 已登录` : '已登录';
+    panel(activePanel() || 'overview');
   }
   function render() {
+    const pendingOrders = state.orders.filter((item) => item.status === 'pending_confirmation').length;
+    const pendingRefunds = state.refunds.filter((item) => item.status === 'requested').length;
+    const draftProducts = state.products.filter((item) => item.status !== 'on_sale').length;
+    const pendingBusinesses = state.businessApplications.filter((item) => item.status === 'pending').length;
+    $('#taskMetrics').innerHTML = [
+      ['orders', pendingOrders, '新订单待接单', '立即处理', pendingOrders > 0],
+      ['refunds', pendingRefunds, '退款申请待审核', '查看售后', pendingRefunds > 0],
+      ['products', draftProducts, '商品尚未上架', '检查商品', false],
+      ['customers', pendingBusinesses, '企业申请待审核', '进入审核', pendingBusinesses > 0]
+    ].map(([target, count, label, action, urgent]) => `<button class="task-card${urgent ? ' is-urgent' : ''}" data-go-panel="${target}"><span class="task-label">${label}</span><strong>${count}</strong><span class="task-action">${action} <b>→</b></span></button>`).join('');
+    $('#overviewDate').textContent = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
     $('#metrics').innerHTML = [
-      ['导入草稿', state.imports.length], ['分类', state.categories.length], ['商品 / SKU', `${state.products.length} / ${state.skus.length}`], ['价格规则', state.prices.length]
+      ['全部商品', state.products.length], ['在售商品', state.products.filter((item) => item.status === 'on_sale').length], ['商品规格', state.skus.length], ['当前订单', state.orders.length]
     ].map(([label, count]) => `<article class="metric"><span>${label}</span><strong>${count}</strong></article>`).join('');
     rows('#importsTable', state.imports.map((item) => {
       const source = item.rawPayload || {}; const parsed = item.parsedPayload || {};
@@ -116,9 +140,14 @@
     if (failed.length) message(`后台有 ${failed.length} 个列表加载失败：${failed[0].reason && failed[0].reason.message || '请检查服务端响应。'}`, true);
   }
   function panel(name) {
-    document.querySelectorAll('#mainNav button').forEach((button) => button.classList.toggle('is-active', button.dataset.panel === name));
+    const moduleKey = moduleForPanel(name);
+    const currentModule = modules[moduleKey];
+    document.querySelectorAll('#mainNav button').forEach((button) => button.classList.toggle('is-active', button.dataset.module === moduleKey));
+    $('#moduleTabs').innerHTML = currentModule.panels.map(([panelName, label]) => `<button data-panel="${panelName}" class="${panelName === name ? 'is-active' : ''}">${label}</button>`).join('');
+    $('#moduleTabs').classList.toggle('is-single', currentModule.panels.length === 1);
     document.querySelectorAll('.panel').forEach((element) => element.classList.toggle('is-active', element.dataset.panel === name));
-    $('#panelTitle').textContent = ({ overview: '概览', imports: '商品草稿', categories: '商品分类', products: '商品与 SKU', customers: '客户与企业', pricing: '价格规则', fulfillment: '仓储与配送', orders: '订单履约', refunds: '退款售后', groups: '拼团活动', access: '系统权限', content: '轮播与首页内容', media: '素材库', audit: '操作记录' })[name] || '运营管理后台';
+    $('#moduleEyebrow').textContent = currentModule.label;
+    $('#panelTitle').textContent = panelTitles[name] || '运营管理后台';
     message('');
   }
   function fillCategory(id) {
@@ -233,7 +262,9 @@
         showAdmin(); await refreshAll(); loginMessage('');
       } catch (error) { loginMessage(error.message || '登录失败。', true); }
     });
-    $('#mainNav').addEventListener('click', (event) => { const button = event.target.closest('button[data-panel]'); if (button) panel(button.dataset.panel); });
+    $('#mainNav').addEventListener('click', (event) => { const button = event.target.closest('button[data-module]'); if (button) panel(button.dataset.defaultPanel); });
+    $('#moduleTabs').addEventListener('click', (event) => { const button = event.target.closest('button[data-panel]'); if (button) panel(button.dataset.panel); });
+    $('#taskMetrics').addEventListener('click', (event) => { const button = event.target.closest('button[data-go-panel]'); if (button) panel(button.dataset.goPanel); });
     $('#logoutButton').addEventListener('click', async () => { try { await call('admin.logout', {}); } catch (_) {} showLogin(); });
     $('#stagingFile').addEventListener('change', async (event) => { const file = event.target.files[0]; if (!file) return; try { await stageFile(file); await refreshAll(); message('商品草稿已写入审核队列。'); } catch (error) { message(error.message || '导入失败。', true); } finally { event.target.value = ''; } });
     $('#activateImportsButton').addEventListener('click', async (event) => {
