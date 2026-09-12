@@ -130,6 +130,12 @@
       <section class="panel" data-panel="audit"><div class="table-wrap"><table><thead><tr><th>时间</th><th>操作</th><th>对象</th><th>操作人</th></tr></thead><tbody id="auditTable"></tbody></table></div></section>
     </section>
   </main>
+  <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-header"><h3 id="modalTitle">表单</h3><button type="button" class="modal-close" id="modalClose" aria-label="关闭">×</button></div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.9.2/cloudbase.full.js"></script>
   <script src="config.js"></script>
   <script src="api-client.js"></script>
