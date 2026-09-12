@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>梦食鲜｜登录</title>
+  <link rel="icon" href="assets/logo.png" type="image/png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="login-shell">
+    <section class="login-card">
+      <div class="login-brand"><img src="assets/logo.png" alt="梦食鲜" width="48" height="48"><div><p class="eyebrow">MENGSHIXIAN ADMIN</p><h1>梦食鲜运营后台</h1></div></div>
+      <p>管理商品、分类、素材、轮播内容和导入草稿。所有价格、库存和订单变更仍以服务端规则为准。</p>
+      <form id="loginForm">
+        <label>管理员账号<input name="username" autocomplete="username" required maxlength="40"></label>
+        <label>管理员密码<input id="loginPassword" name="password" type="password" autocomplete="current-password" required minlength="12"></label>
+        <label class="checkbox password-visibility"><input id="toggleLoginPassword" type="checkbox" aria-controls="loginPassword">显示输入的密码</label>
+        <button class="primary" type="submit">安全登录</button>
+      </form>
+      <p class="muted">首位管理员只能通过本地安全初始化脚本创建，初始化令牌不会出现在网页中。</p>
+      <p class="form-message" id="loginMessage" aria-live="polite"></p>
+    </section>
+  </main>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.9.2/cloudbase.full.js"></script>
+  <script src="config.js"></script>
+  <script src="api-client.js"></script>
+  <script>
+    (function(global, document) {
+      const api = global.MengshixianAdminApi;
+
+      // 如果已有 token，直接跳转首页
+      if (api.getToken()) {
+        global.location.replace('index.html');
+        return;
+      }
+
+      const $ = (sel) => document.querySelector(sel);
+      function loginMessage(text, error) {
+        const el = $('#loginMessage');
+        el.textContent = text || '';
+        el.style.color = error ? '#c93c4d' : '#19713a';
+      }
+
+      $('#toggleLoginPassword').addEventListener('change', (e) => {
+        $('#loginPassword').type = e.target.checked ? 'text' : 'password';
+      });
+
+      $('#loginForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        loginMessage('正在安全登录…');
+        try {
+          const form = new FormData(event.currentTarget);
+          const result = await api.call('admin.login', {
+            username: form.get('username'),
+            password: form.get('password')
+          });
+          api.setToken(result.token);
+          loginMessage('登录成功，正在跳转…');
+          setTimeout(() => global.location.replace('index.html'), 300);
+        } catch (error) {
+          loginMessage(error.message || '登录失败。', true);
+        }
+      });
+
+      // 检查服务
+      (async () => {
+        try {
+          await api.call('health', {});
+          loginMessage('CloudBase 服务连接正常，请输入管理员账号和密码。');
+        } catch (error) {
+          loginMessage(`CloudBase 服务连接失败：${error.message || '请稍后重试。'}`, true);
+        }
+      })();
+    })(window, document);
+  </script>
+</body>
+</html>

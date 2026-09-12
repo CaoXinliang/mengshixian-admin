@@ -5,10 +5,10 @@
   let signingIn;
   let anonymousReady = false;
 
-  function getToken() { return global.sessionStorage.getItem('mengshixian_admin_token') || ''; }
+  function getToken() { return global.localStorage.getItem('mengshixian_admin_token') || ''; }
   function setToken(token) {
-    if (token) global.sessionStorage.setItem('mengshixian_admin_token', token);
-    else global.sessionStorage.removeItem('mengshixian_admin_token');
+    if (token) global.localStorage.setItem('mengshixian_admin_token', token);
+    else global.localStorage.removeItem('mengshixian_admin_token');
   }
   function requestId() { return `admin-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`; }
   function clearSession() { setToken(''); }
