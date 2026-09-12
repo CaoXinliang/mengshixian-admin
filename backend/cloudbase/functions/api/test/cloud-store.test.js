@@ -62,6 +62,45 @@ async function run() {
   });
   assert.equal(await missingStore.getById('inventory', 'missing'), null, 'CloudBase 缺失文档必须标准化为 null');
 
+  const missingCollectionError = new Error('collection.get:fail -502005 database collection not exists. [ResourceNotFound] Db or Table not exist: bundles.');
+  missingCollectionError.errCode = -502005;
+  missingCollectionError.errMsg = missingCollectionError.message;
+  const missingQuery = {
+    where() { return this; },
+    orderBy() { return this; },
+    skip() { return this; },
+    limit() { return this; },
+    async get() { throw missingCollectionError; },
+    async count() { throw missingCollectionError; }
+  };
+  const missingCollectionStore = createCloudStore({
+    collection() { return Object.create(missingQuery); }
+  });
+  assert.deepEqual(
+    await missingCollectionStore.list('bundles', { page: 2, pageSize: 15, allowMissingCollection: true }),
+    { rows: [], total: 0, page: 2, pageSize: 15 },
+    '显式允许缺失的可选集合必须返回分页空态'
+  );
+  await assert.rejects(
+    () => missingCollectionStore.list('products', { page: 1, pageSize: 20 }),
+    /collection not exists/,
+    '核心集合缺失不得伪装为空数据'
+  );
+
+  const networkStore = createCloudStore({
+    collection() {
+      const query = Object.create(missingQuery);
+      query.get = async () => { throw new Error('network disconnected'); };
+      query.count = query.get;
+      return query;
+    }
+  });
+  await assert.rejects(
+    () => networkStore.list('bundles', { allowMissingCollection: true }),
+    /network disconnected/,
+    '可选集合也不能吞掉真实网络故障'
+  );
+
   const updateCall = calls.find((item) => item.type === 'update');
   assert.equal(updateCall.data.status, 'cancelled');
   assert.equal(Object.hasOwn(updateCall.data, '_id'), false, 'update 写入数据不得携带 _id');

@@ -4,6 +4,19 @@
   let cloudAuth;
   let signingIn;
   let anonymousReady = false;
+  const defaultTimeoutMs = 15000;
+  const idempotentWriteActions = new Set([
+    'admin.products.batchUpsert',
+    'admin.prices.batchUpsert',
+    'admin.orders.notes.add',
+    'admin.orders.batchTransition',
+    'admin.versions.rollback',
+    'admin.inventory.adjust',
+    'admin.receivables.settle',
+    'admin.refunds.review',
+    'admin.refunds.process',
+    'admin.points.adjust'
+  ]);
 
   function getToken() { return global.sessionStorage.getItem('mengshixian_admin_token') || ''; }
   function setToken(token) {
@@ -12,6 +25,41 @@
   }
   function requestId() { return `admin-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`; }
   function clearSession() { setToken(''); }
+
+  function timeoutMs() {
+    const configured = Number(config.timeoutMs);
+    return Number.isFinite(configured) && configured > 0 ? configured : defaultTimeoutMs;
+  }
+
+  function isReadOnlyAction(action) {
+    return action === 'health'
+      || action === 'admin.me'
+      || action === 'admin.readiness'
+      || action === 'admin.permissions.catalog'
+      || action === 'admin.groups.refundTasks'
+      || action === 'admin.orders.pickingList'
+      || /\.(?:list|get|ledger)$/.test(action);
+  }
+
+  function canRetry(action, payload) {
+    return isReadOnlyAction(action)
+      || Boolean(idempotentWriteActions.has(action)
+        && payload && typeof payload.idempotencyKey === 'string' && payload.idempotencyKey.trim());
+  }
+
+  function withTimeout(promise, action) {
+    return new Promise((resolve, reject) => {
+      const timer = global.setTimeout(() => {
+        const error = new Error(`请求超时（${action}），请检查网络后重试。`);
+        error.code = 'REQUEST_TIMEOUT';
+        reject(error);
+      }, timeoutMs());
+      Promise.resolve(promise).then(
+        (value) => { global.clearTimeout(timer); resolve(value); },
+        (error) => { global.clearTimeout(timer); reject(error); }
+      );
+    });
+  }
 
   function explainCloudAuthError(error) {
     const detail = error
@@ -49,17 +97,17 @@
   }
 
   async function call(action, payload, retried) {
-    const app = await ensureCloudApp();
     let result;
     try {
-      result = await app.callFunction({
+      const app = await withTimeout(ensureCloudApp(), `${action}:auth`);
+      result = await withTimeout(app.callFunction({
         name: config.functionName,
         data: { action, payload: { ...(payload || {}), adminToken: payload && payload.adminToken !== undefined ? payload.adminToken : getToken() }, requestId: requestId() },
         parse: true
-      });
+      }), action);
     } catch (error) {
       resetAnonymousAuth();
-      if (!retried) return call(action, payload, true);
+      if (!retried && canRetry(action, payload)) return call(action, payload, true);
       throw error;
     }
     let body = result && result.result;

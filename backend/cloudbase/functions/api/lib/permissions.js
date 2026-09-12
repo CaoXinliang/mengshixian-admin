@@ -4,10 +4,11 @@ const ROLE_PERMISSIONS = {
   product_manager: ['catalog.read', 'catalog.write', 'imports.read', 'imports.write'],
   price_manager: ['pricing.read', 'pricing.write'],
   customer_manager: ['users.read', 'users.write', 'organizations.read', 'organizations.write'],
-  marketing_manager: ['marketing.read', 'marketing.write'],
+  marketing_manager: ['marketing.read', 'marketing.write', 'reviews.read', 'reviews.write', 'points.read', 'points.write'],
   content_manager: ['content.read', 'content.write', 'media.read', 'media.write'],
   order_manager: ['orders.read', 'orders.write'],
-  finance_manager: ['payments.read', 'refunds.read', 'refunds.write'],
+  finance_manager: ['payments.read', 'refunds.read', 'refunds.write', 'credit.read', 'credit.write', 'receivables.read', 'receivables.write', 'invoices.read', 'invoices.write', 'storedValue.read'],
+  procurement_manager: ['inquiries.read', 'inquiries.write'],
   warehouse_manager: ['inventory.read', 'inventory.write', 'delivery.read', 'delivery.write'],
   auditor: ['audit.read']
 };

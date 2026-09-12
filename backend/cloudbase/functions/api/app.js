@@ -2,17 +2,24 @@ const { fail, success, failure } = require('./lib/response');
 const { randomId, sha256, hashPassword, safeEqual, verifyPassword, encryptText, decryptText } = require('./lib/security');
 const { inventoryId, inventoryLedgerId } = require('./lib/transaction-ids');
 const { ROLE_PERMISSIONS, KNOWN_PERMISSIONS, hasPermission, collectPermissions } = require('./lib/permissions');
-const { cents, audienceVisible, buildQuote, createOrder, cancelOrder, expireReservations, expireGroups, confirmWechatPayment, resolveUnitPrice, resolveUnitPrices, orderReservations, consumeReservation, releaseReservation } = require('./lib/commerce');
+const { cents, audienceVisible, buildQuote, acceptedQuoteOverrides, createOrder, findExistingOrder, cancelOrder, expireReservations, expireGroups, confirmWechatPayment, resolveUnitPrice, resolveUnitPrices, normalizeQuantityTiers, orderReservations, consumeReservation, releaseReservation } = require('./lib/commerce');
 const { assertTransition } = require('./lib/order-state');
 const { active: activeGroupCampaign, createGroup, releaseSlot } = require('./lib/groups');
-const { requestRefund, reviewRefund, confirmRefund } = require('./lib/refunds');
+const { requestRefund, reviewRefund, processRefund, confirmRefund } = require('./lib/refunds');
 const { collectPageMatches } = require('./lib/collection-read');
+const b2b = require('./lib/b2b');
+const { convertCredit, releaseCredit } = require('./lib/b2b-credit');
+const marketing = require('./lib/marketing');
+const { awardOrderPoints } = require('./lib/points');
+const webAuth = require('./lib/web-auth');
+const { createAdminOperations } = require('./lib/admin-operations');
+const { AsyncLocalStorage } = require('async_hooks');
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_FAILURES = 5;
 const PUBLIC_PRODUCT_FIELDS = ['_id', 'spuCode', 'name', 'subtitle', 'categoryId', 'categoryName', 'brand', 'origin', 'storageType', 'frozenTemperature', 'shelfLifeDays', 'coverMediaId', 'audienceType', 'sort'];
-const PUBLIC_SKU_FIELDS = ['_id', 'skuCode', 'productId', 'specName', 'netWeight', 'weightUnit', 'piecesPerCase', 'packageUnit', 'barcode', 'mediaIds'];
+const PUBLIC_SKU_FIELDS = ['_id', 'skuCode', 'productId', 'specName', 'netWeight', 'weightUnit', 'piecesPerCase', 'packageUnit', 'barcode', 'mediaIds', 'minOrderQuantity', 'orderMultiple'];
 
 function nowIso(clock) { return clock().toISOString(); }
 function string(value, label, options = {}) {
@@ -65,17 +72,26 @@ function safeAddress(address) {
   return pick(address, ['_id', 'name', 'phoneMasked', 'provinceCode', 'cityCode', 'districtCode', 'regionCode', 'detail', 'isDefault', 'tag']);
 }
 function safeOrder(order) {
-  return pick(order, ['_id', 'orderNo', 'warehouseId', 'deliveryAreaId', 'addressSnapshot', 'deliverySlotSnapshot', 'pricingSnapshot', 'freightSnapshot', 'totalAmountCent', 'paymentMethod', 'paymentStatus', 'refundStatus', 'groupId', 'groupCampaignId', 'groupStatus', 'status', 'shipInfo', 'createdAt', 'updatedAt', 'cancelledAt', 'completedAt']);
+  return { fulfillmentType: order.fulfillmentType || 'delivery', ...pick(order, ['_id', 'orderNo', 'warehouseId', 'fulfillmentType', 'pickupSiteSnapshot', 'deliveryAreaId', 'addressSnapshot', 'deliverySlotSnapshot', 'acceptedQuoteSnapshot', 'bundleSnapshot', 'couponSnapshot', 'discountAmountCent', 'pricingSnapshot', 'freightSnapshot', 'totalAmountCent', 'refundedAmountCent', 'paymentMethod', 'paymentStatus', 'refundStatus', 'creditStatus', 'groupId', 'groupCampaignId', 'groupStatus', 'status', 'shipInfo', 'createdAt', 'updatedAt', 'cancelledAt', 'deliveredAt', 'completedAt']) };
 }
 function safeOrderItem(item) {
   return pick(item, ['_id', 'skuId', 'productId', 'productNameSnapshot', 'specSnapshot', 'packageUnitSnapshot', 'quantity', 'mediaSnapshot']);
+}
+function safeOrderItemDetail(item) {
+  return pick(item, ['_id', 'orderItemId', 'orderId', 'skuId', 'productId', 'productNameSnapshot', 'specSnapshot', 'packageUnitSnapshot', 'quantity', 'unitPriceCent', 'subtotalCent', 'paidSubtotalCent', 'refundableAmountCent', 'priceRuleId', 'quantityTierSnapshot', 'purchaseRuleSnapshot', 'currency', 'mediaSnapshot', 'createdAt']);
+}
+function safeRefund(refund, admin = false) {
+  const output = pick(refund, ['_id', 'refundNo', 'orderId', 'organizationId', 'items', 'amountCent', 'goodsAmountCent', 'includedOrderAdjustmentCent', 'creditAdjustmentCent', 'cashRefundRequiredCent', 'currency', 'reasonCode', 'description', 'reason', 'mediaIds', 'deadlineAt', 'status', 'channelStatus', 'manualRefundRequired', 'statusTimeline', 'reviewNote', 'reviewedAt', 'refundedAt', 'createdAt', 'updatedAt']);
+  if (admin) Object.assign(output, pick(refund, ['userId', 'reviewedBy']));
+  return output;
 }
 function safeUser(user) {
   return pick(user, ['_id', 'userType', 'organizationId', 'priceLevel', 'businessStatus', 'status', 'createdAt', 'updatedAt', 'lastLoginAt']);
 }
 function safeGroup(group) {
-  return pick(group, ['_id', 'groupNo', 'campaignId', 'groupSize', 'memberCount', 'reservedMemberCount', 'status', 'expiresAt', 'successAt', 'createdAt', 'updatedAt']);
+  return pick(group, ['_id', 'groupNo', 'campaignId', 'groupSize', 'memberCount', 'reservedMemberCount', 'refundRequired', 'status', 'expiresAt', 'successAt', 'failedAt', 'failureReason', 'createdAt', 'updatedAt']);
 }
+function webSessionToken(payload = {}) { const primary = String(payload.sessionToken || '').trim(); const legacy = String(payload.webSessionToken || '').trim(); if (primary && legacy && primary !== legacy) fail('AUTH_TOKEN_CONFLICT', '网页会话字段冲突。'); return primary || legacy; }
 function isScheduledEnabled(item, now) {
   if (!item || item.enabled === false || item.status === 'disabled' || item.status === 'archived') return false;
   const time = now.getTime();
@@ -95,6 +111,7 @@ function cleanAdmin(admin, permissions) {
 }
 
 function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '', piiEncryptionKey = '', paymentPreparer = null, paymentVerifier = null, refundVerifier = null, mediaUrlResolver = null, storageUploader = null, demoMode = false, clock = () => new Date() }) {
+  const requestScope = new AsyncLocalStorage();
   async function audit(admin, action, targetType, targetId, details = {}) {
     return store.create('audit_logs', {
       actorType: admin ? 'admin' : 'system',
@@ -119,19 +136,40 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     return { admin, permissions };
   }
 
-  async function ensureWechatUser() {
+  async function ensureMiniUser() {
     const identity = getIdentity() || {};
     const openid = identity.OPENID || identity.openid || '';
     if (!openid) fail('UNAUTHENTICATED', '未取得微信用户身份。');
     let user = await store.findOne('users', { openid });
     if (!user) {
+      if (typeof store.runTransaction !== 'function') fail('TRANSACTION_NOT_AVAILABLE', '当前环境不支持用户建档事务。');
       const timestamp = nowIso(clock);
-      user = await store.create('users', { openid, userType: 'c', status: 'active', createdAt: timestamp, updatedAt: timestamp, lastLoginAt: timestamp });
+      const deterministicId = require('./lib/transaction-ids').stableDocumentId('wechat_user', [openid]);
+      user = await store.runTransaction(async (tx) => {
+        const current = await tx.getById('users', deterministicId);
+        if (current) {
+          if (current.openid !== openid) fail('USER_ID_CONFLICT', '微信用户稳定 ID 冲突。');
+          if (current.status === 'disabled') fail('AUTH_ACCOUNT_DISABLED', '用户已停用。');
+          await tx.update('users', deterministicId, { lastLoginAt: timestamp, updatedAt: timestamp });
+          return { ...current, lastLoginAt: timestamp, updatedAt: timestamp };
+        }
+        const created = { _id: deterministicId, openid, userType: 'c', status: 'active', createdAt: timestamp, updatedAt: timestamp, lastLoginAt: timestamp };
+        await tx.set('users', deterministicId, created);
+        return created;
+      });
     } else {
+      if (user.status === 'disabled') fail('AUTH_ACCOUNT_DISABLED', '用户已停用。');
       await store.update('users', user._id, { lastLoginAt: nowIso(clock), updatedAt: nowIso(clock) });
       user.lastLoginAt = nowIso(clock);
     }
     return user;
+  }
+
+  async function ensureWechatUser() {
+    const scoped = requestScope.getStore() || {};
+    const sessionToken = webSessionToken(scoped.payload || {});
+    if (sessionToken) return (await webAuth.resolveSession({ store, sessionToken, now: clock() })).user;
+    return ensureMiniUser();
   }
 
   async function applyBusiness(payload) {
@@ -161,6 +199,9 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
   }
 
   async function resolveViewerType() {
+    const scoped = requestScope.getStore() || {};
+    const token = webSessionToken(scoped.payload || {});
+    if (token) return (await webAuth.resolveSession({ store, sessionToken: token, now: clock() })).user.userType === 'b' ? 'b' : 'c';
     try {
       const identity = getIdentity() || {};
       const openid = identity.OPENID || identity.openid || '';
@@ -222,7 +263,11 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     const priced = await resolveUnitPrices(store, visibleSkuIds, user, channel, clock());
     const rows = [];
     for (const item of priced) {
-      rows.push({ skuId: item.skuId, amountCent: item.amountCent, currency: item.currency, temporary: item.temporary, source: item.source });
+      const row = { skuId: item.skuId, amountCent: item.amountCent, currency: item.currency, temporary: item.temporary, source: item.source };
+      if (item.quantityTiers && item.quantityTiers.length) row.quantityTiers = item.quantityTiers;
+      if (item.minOrderQuantity) row.minOrderQuantity = item.minOrderQuantity;
+      if (item.orderMultiple) row.orderMultiple = item.orderMultiple;
+      rows.push(row);
     }
     return { rows };
   }
@@ -246,7 +291,8 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     const resolved = new Map();
     await collectPageMatches(store, 'media_assets', { where: { enabled: true } }, (item) => {
       const platforms = Array.isArray(item.targetPlatforms) && item.targetPlatforms.length ? item.targetPlatforms : ['miniapp', 'web'];
-      if (requested.has(item._id) && platforms.includes(platform) && isScheduledEnabled(item, clock()) && !resolved.has(item._id)) {
+      const publicReviewEvidence = item.purpose === 'review_evidence' && item.publicApproved === true;
+      if ((!item.userId || publicReviewEvidence) && item.purpose !== 'aftersale_evidence' && requested.has(item._id) && platforms.includes(platform) && isScheduledEnabled(item, clock()) && !resolved.has(item._id)) {
         resolved.set(item._id, pick(item, ['_id', 'type', 'fileId', 'thumbnailFileId', 'coverFileId', 'mimeType', 'version']));
       }
       return false;
@@ -259,17 +305,25 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
   }
 
   async function publicDeliveryOptions() {
-    const [warehouses, areas, slots] = await Promise.all([
+    const [warehouses, areas, slots, pickupSites] = await Promise.all([
       collectPageMatches(store, 'warehouses', { where: { status: 'active' }, orderBy: [{ field: 'sort', direction: 'asc' }] }, () => true),
       collectPageMatches(store, 'delivery_areas', { where: { status: 'active' }, orderBy: [{ field: 'sort', direction: 'asc' }] }, () => true),
-      collectPageMatches(store, 'delivery_slots', { where: { status: 'active' }, orderBy: [{ field: 'sort', direction: 'asc' }] }, () => true)
+      collectPageMatches(store, 'delivery_slots', { where: { status: 'active' }, orderBy: [{ field: 'sort', direction: 'asc' }] }, () => true),
+      collectPageMatches(store, 'pickup_sites', { where: { status: 'active' }, orderBy: [{ field: 'sort', direction: 'asc' }] }, () => true)
     ]);
+    const activeWarehouseIds = new Set(warehouses.map((item) => item._id));
     return {
       warehouses: warehouses.map((item) => pick(item, ['_id', 'code', 'name', 'address', 'sort'])),
       areas: areas.map((item) => pick(item, ['_id', 'name', 'regionCodes', 'warehouseIds', 'sort'])),
-      slots: slots.map((item) => pick(item, ['_id', 'name', 'deliveryAreaId', 'warehouseId', 'startTime', 'endTime', 'sort']))
+      slots: slots.map((item) => pick(item, ['_id', 'name', 'deliveryAreaId', 'warehouseId', 'startTime', 'endTime', 'sort'])),
+      pickupSites: pickupSites.filter((item) => activeWarehouseIds.has(item.warehouseId)).map((item) => pick(item, ['_id', 'name', 'address', 'regionCode', 'warehouseId', 'openingHours', 'sort']))
     };
   }
+
+  async function webLogin(payload) { const result = await webAuth.login({ store, payload, now: clock() }); await audit(null, 'auth.web.login', 'web_login_account', result.account._id, { userId: result.user._id }); return { sessionToken: result.sessionToken, expiresAt: result.expiresAt, user: safeUser(result.user) }; }
+  async function webMe(payload) { const result = await webAuth.resolveSession({ store, sessionToken: webSessionToken(payload), now: clock() }); return { user: safeUser(result.user), account: webAuth.safeAccount(result.account), expiresAt: result.session.expiresAt }; }
+  async function webLogout(payload) { const result = await webAuth.logout({ store, sessionToken: webSessionToken(payload), now: clock() }); await audit(null, 'auth.web.logout', 'web_user_session', '', {}); return result; }
+  async function webPasswordChange(payload) { const result = await webAuth.changePassword({ store, sessionToken: webSessionToken(payload), payload, now: clock() }); await audit(null, 'auth.web.password_change', 'web_login_account', '', {}); return result; }
 
   function campaignIsActive(campaign) {
     return campaign && campaign.status === 'active' && isScheduledEnabled(campaign, clock());
@@ -559,6 +613,11 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     if (requestedStatus && !['draft', 'pending_review', 'on_sale', 'off_sale', 'archived'].includes(requestedStatus)) fail('VALIDATION_ERROR', '商品状态不合法。');
     // 分层可见性：all 双端 / c 仅个人顾客 / b 仅企业采购；更新时未传则保持原值
     const requestedAudience = ['all', 'c', 'b'].includes(payload.audienceType) ? payload.audienceType : '';
+    const suppliedProductMetadata = demoMetadata(payload);
+    const productMetadata = payload.id ? {} : suppliedProductMetadata;
+    if (payload.source !== undefined) productMetadata.source = suppliedProductMetadata.source;
+    if (payload.temporary !== undefined) productMetadata.temporary = suppliedProductMetadata.temporary;
+    if (payload.demoNote !== undefined) productMetadata.demoNote = suppliedProductMetadata.demoNote;
     const patch = {
       spuCode: string(payload.spuCode, 'SPU 编码', { max: 60 }),
       name: string(payload.name, '商品名称', { required: true, max: 100 }),
@@ -573,6 +632,7 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
       description: string(payload.description, '商品介绍', { max: 5000 }),
       coverMediaId: await validateMediaReference(payload.coverMediaId, '商品主图 ID', 'image'),
       sort: integer(payload.sort, 0),
+      ...productMetadata,
       updatedAt: timestamp
     };
     if (requestedAudience) patch.audienceType = requestedAudience;
@@ -583,6 +643,8 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
       const existing = await store.findOne('products', { _id: id });
       if (!existing) fail('PRODUCT_NOT_FOUND', '商品不存在。');
       if (requestedStatus === 'on_sale') {
+        const effectiveMetadata = { source: productMetadata.source === undefined ? existing.source : productMetadata.source, temporary: productMetadata.temporary === undefined ? existing.temporary : productMetadata.temporary };
+        if (effectiveMetadata.temporary || ['ai_generated', 'demo'].includes(effectiveMetadata.source)) fail('TEMPORARY_CANNOT_ACTIVATE', 'AI 或临时商品只能保存为草稿，不能上架。');
         if (category.status !== 'enabled') fail('PRODUCT_NOT_READY', '商品所属分类必须先启用。');
         const skus = await store.list('product_skus', { where: { productId: id, status: 'on_sale' }, page: 1, pageSize: 1 });
         if (!skus.total) fail('PRODUCT_NOT_READY', '至少需要一个已上架 SKU 才能上架商品。');
@@ -603,6 +665,20 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     const product = await store.findOne('products', { _id: productId });
     if (!product) fail('PRODUCT_NOT_FOUND', '商品不存在。');
     const timestamp = nowIso(clock);
+    const purchaseRulePatch = {};
+    if (payload.minOrderQuantity !== undefined) {
+      purchaseRulePatch.minOrderQuantity = Number(payload.minOrderQuantity);
+      if (!Number.isInteger(purchaseRulePatch.minOrderQuantity) || purchaseRulePatch.minOrderQuantity < 1 || purchaseRulePatch.minOrderQuantity > 999) fail('VALIDATION_ERROR', 'SKU 起订量必须是 1 到 999 的整数。');
+    }
+    if (payload.orderMultiple !== undefined) {
+      purchaseRulePatch.orderMultiple = Number(payload.orderMultiple);
+      if (!Number.isInteger(purchaseRulePatch.orderMultiple) || purchaseRulePatch.orderMultiple < 1 || purchaseRulePatch.orderMultiple > 999) fail('VALIDATION_ERROR', 'SKU 购买倍数必须是 1 到 999 的整数。');
+    }
+    const suppliedSkuMetadata = demoMetadata(payload);
+    const metadata = payload.id ? {} : suppliedSkuMetadata;
+    if (payload.source !== undefined) metadata.source = suppliedSkuMetadata.source;
+    if (payload.temporary !== undefined) metadata.temporary = suppliedSkuMetadata.temporary;
+    if (payload.demoNote !== undefined) metadata.demoNote = suppliedSkuMetadata.demoNote;
     const patch = {
       productId,
       skuCode: string(payload.skuCode, 'SKU 编码', { max: 60 }),
@@ -615,6 +691,8 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
       mediaIds: Array.isArray(payload.mediaIds) ? payload.mediaIds.slice(0, 12) : [],
       sort: integer(payload.sort, 0),
       status: ['draft', 'on_sale', 'off_sale'].includes(payload.status) ? payload.status : 'draft',
+      ...purchaseRulePatch,
+      ...metadata,
       updatedAt: timestamp
     };
     let sku;
@@ -622,10 +700,11 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
       const id = string(payload.id, 'SKU ID', { max: 80 });
       const existing = await store.findOne('product_skus', { _id: id });
       if (!existing) fail('SKU_NOT_FOUND', 'SKU 不存在。');
+      if (payload.status === undefined) patch.status = existing.status;
       await store.update('product_skus', id, patch);
       sku = { ...existing, ...patch, _id: id };
     } else {
-      sku = await store.create('product_skus', { ...patch, createdAt: timestamp });
+      sku = await store.create('product_skus', { minOrderQuantity: 1, orderMultiple: 1, ...patch, createdAt: timestamp });
     }
     await audit(admin, 'catalog.sku.upsert', 'product_sku', sku._id, { productId, specName: sku.specName, status: sku.status });
     return sku;
@@ -639,6 +718,7 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     const product = await store.findOne('products', { _id: id });
     if (!product) fail('PRODUCT_NOT_FOUND', '商品不存在。');
     if (status === 'on_sale') {
+      if (product.temporary === true || ['ai_generated', 'demo'].includes(product.source)) fail('TEMPORARY_CANNOT_ACTIVATE', 'AI 或临时商品不能上架。');
       const category = await store.findOne('categories', { _id: product.categoryId, status: 'enabled' });
       if (!category) fail('PRODUCT_NOT_READY', '商品所属分类必须先启用。');
       const skus = await store.list('product_skus', { where: { productId: id, status: 'on_sale' }, page: 1, pageSize: 1 });
@@ -656,6 +736,7 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     if (!['draft', 'on_sale', 'off_sale'].includes(status)) fail('VALIDATION_ERROR', 'SKU 状态不合法。');
     const sku = await store.findOne('product_skus', { _id: id });
     if (!sku) fail('SKU_NOT_FOUND', 'SKU 不存在。');
+    if (status === 'on_sale' && (sku.temporary === true || ['ai_generated', 'demo'].includes(sku.source))) fail('TEMPORARY_CANNOT_ACTIVATE', 'AI 或临时 SKU 不能上架。');
     await store.update('product_skus', id, { status, updatedAt: nowIso(clock) });
     await audit(admin, 'catalog.sku.status', 'product_sku', id, { from: sku.status, to: status, productId: sku.productId });
     return { id, status, productId: sku.productId };
@@ -676,6 +757,11 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     if (startAt && Number.isNaN(new Date(startAt).getTime())) fail('VALIDATION_ERROR', '内容开始时间不合法。');
     if (endAt && Number.isNaN(new Date(endAt).getTime())) fail('VALIDATION_ERROR', '内容结束时间不合法。');
     if (startAt && endAt && new Date(startAt).getTime() > new Date(endAt).getTime()) fail('VALIDATION_ERROR', '内容结束时间不能早于开始时间。');
+    const suppliedContentMetadata = demoMetadata(payload);
+    const contentMetadata = payload.id ? {} : suppliedContentMetadata;
+    if (payload.source !== undefined) contentMetadata.source = suppliedContentMetadata.source;
+    if (payload.temporary !== undefined) contentMetadata.temporary = suppliedContentMetadata.temporary;
+    if (payload.demoNote !== undefined) contentMetadata.demoNote = suppliedContentMetadata.demoNote;
     const patch = {
       contentKey,
       title: string(payload.title, `${label}标题`, { required: true, max: 100 }),
@@ -690,13 +776,23 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
       startAt,
       endAt,
       targetPlatforms,
+      ...contentMetadata,
       updatedAt: timestamp
     };
+    if (!payload.id && (contentMetadata.temporary || ['ai_generated', 'demo'].includes(contentMetadata.source))) {
+      if (payload.enabled === true) fail('TEMPORARY_CANNOT_ACTIVATE', 'AI 或临时内容只能保存为停用草稿。');
+      patch.enabled = false;
+    }
     let item;
     if (payload.id) {
       const id = string(payload.id, `${label} ID`, { max: 80 });
       const existing = await store.findOne(collection, { _id: id });
       if (!existing) fail('CONTENT_NOT_FOUND', `${label}不存在。`);
+      if (payload.enabled === undefined) patch.enabled = existing.enabled !== false;
+      if (payload.source === undefined) patch.source = existing.source || '';
+      if (payload.temporary === undefined) patch.temporary = existing.temporary === true;
+      if (payload.demoNote === undefined) patch.demoNote = existing.demoNote || '';
+      if (patch.enabled && (patch.temporary || ['ai_generated', 'demo'].includes(patch.source))) fail('TEMPORARY_CANNOT_ACTIVATE', 'AI 或临时内容只能保存为停用草稿。');
       if (!contentKey) patch.contentKey = existing.contentKey || '';
       if (contentKey && contentKey !== existing.contentKey) {
         const duplicated = await store.findOne(collection, { contentKey });
@@ -744,12 +840,20 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     const { admin } = await getAdmin(payload, 'media.write');
     const timestamp = nowIso(clock);
     const patch = mediaPatch(payload, timestamp);
+    if (!payload.id && (patch.temporary || ['ai_generated', 'demo'].includes(patch.source))) {
+      if (payload.enabled === true) fail('TEMPORARY_CANNOT_ACTIVATE', 'AI 或临时素材不能直接启用。');
+      patch.enabled = false;
+    }
     let asset;
     if (payload.id) {
       const id = string(payload.id, '素材 ID', { max: 80 });
       const existing = await store.findOne('media_assets', { _id: id });
       if (!existing) fail('MEDIA_NOT_FOUND', '素材不存在。');
+      if (payload.enabled === undefined) patch.enabled = existing.enabled !== false;
+      if (payload.source === undefined) patch.source = existing.source || 'admin_upload';
+      if (payload.temporary === undefined) patch.temporary = existing.temporary === true;
       if (existing.fileId !== patch.fileId) fail('MEDIA_VERSION_REQUIRED', '素材文件不可覆盖，请使用“新建版本”保留历史素材。');
+      if (patch.enabled && (patch.temporary || ['ai_generated', 'demo'].includes(patch.source))) fail('TEMPORARY_CANNOT_ACTIVATE', 'AI 或临时素材不能直接启用。');
       await store.update('media_assets', id, patch);
       asset = { ...existing, ...patch, _id: id, version: integer(existing.version, 1) };
     } else {
@@ -766,6 +870,10 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     if (!existing) fail('MEDIA_NOT_FOUND', '被替换素材不存在。');
     const timestamp = nowIso(clock);
     const patch = mediaPatch(payload, timestamp);
+    if (patch.temporary || ['ai_generated', 'demo'].includes(patch.source)) {
+      if (payload.enabled === true) fail('TEMPORARY_CANNOT_ACTIVATE', 'AI 或临时素材不能直接启用。');
+      patch.enabled = false;
+    }
     if (existing.fileId === patch.fileId) fail('MEDIA_VERSION_SAME_FILE', '新版本必须使用不同的云存储文件。');
     const asset = await store.create('media_assets', {
       ...patch,
@@ -915,7 +1023,7 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     });
     const sku = await store.create('product_skus', {
       productId: product._id, skuCode: '', specName: source.specName || source.packageUnit, netWeight: '', weightUnit: '', piecesPerCase: 0,
-      packageUnit: source.packageUnit, barcode: '', mediaIds: [], sort: 0, status: 'draft', sourceImportId: id,
+      packageUnit: source.packageUnit, barcode: '', mediaIds: [], minOrderQuantity: 1, orderMultiple: 1, sort: 0, status: 'draft', sourceImportId: id,
       ...demoMetadata(source), createdAt: timestamp, updatedAt: timestamp
     });
     await store.update('import_jobs', id, { status: 'imported', productId: product._id, skuId: sku._id, reviewedBy: admin._id, reviewedAt: timestamp, updatedAt: timestamp });
@@ -980,7 +1088,7 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
       regionCode: string(payload.regionCode, '配送区域编码', { required: true, max: 80 }),
       detail: string(payload.detail, '详细地址', { required: true, max: 200 }),
       tag: string(payload.tag, '地址标签', { max: 20 }),
-      isDefault: payload.isDefault === true,
+      isDefault: false,
       status: 'active',
       updatedAt: timestamp
     };
@@ -989,10 +1097,6 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
       const id = string(payload.id, '收货地址 ID', { max: 80 });
       existingAddress = await store.findOne('addresses', { _id: id, userId: user._id, status: 'active' });
       if (!existingAddress) fail('ADDRESS_NOT_FOUND', '收货地址不存在。');
-    }
-    if (patch.isDefault) {
-      const existing = await store.list('addresses', { where: { userId: user._id, status: 'active', isDefault: true }, page: 1, pageSize: 100 });
-      await Promise.all(existing.rows.map((item) => store.update('addresses', item._id, { isDefault: false, updatedAt: timestamp })));
     }
     let address;
     if (payload.id) {
@@ -1005,6 +1109,36 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
       if (activeAddresses.total >= 20) fail('VALIDATION_ERROR', '收货地址最多保存 20 条，请先删除不需要的地址。');
       address = await store.create('addresses', { ...patch, createdAt: timestamp });
     }
+    if (payload.isDefault === true) address = await setDefaultAddressForUser(user, address._id);
+    return { address: safeAddress(address) };
+  }
+
+  async function setDefaultAddressForUser(user, addressId) {
+    if (typeof store.runTransaction !== 'function') fail('TRANSACTION_NOT_AVAILABLE', '当前环境不支持默认地址事务。');
+    const id = string(addressId, '收货地址 ID', { required: true, max: 80 });
+    const target = await store.findOne('addresses', { _id: id, userId: user._id, status: 'active' });
+    if (!target) fail('ADDRESS_NOT_FOUND', '收货地址不存在。');
+    const defaults = await collectPageMatches(store, 'addresses', { where: { userId: user._id, status: 'active', isDefault: true } }, () => true);
+    const pointerId = `address_default_${sha256(user._id).slice(0, 40)}`;
+    const timestamp = nowIso(clock);
+    return store.runTransaction(async (tx) => {
+      const currentTarget = await tx.getById('addresses', id);
+      if (!currentTarget || currentTarget.userId !== user._id || currentTarget.status !== 'active') fail('ADDRESS_NOT_FOUND', '收货地址不存在。');
+      const pointer = await tx.getById('address_default_pointers', pointerId);
+      const idsToUnset = [...new Set([...defaults.map((item) => item._id), pointer && pointer.addressId].filter((item) => item && item !== id))];
+      for (const otherId of idsToUnset) {
+        const other = await tx.getById('addresses', otherId);
+        if (other && other.userId === user._id && other.status === 'active' && other.isDefault === true) await tx.update('addresses', otherId, { isDefault: false, updatedAt: timestamp });
+      }
+      await tx.update('addresses', id, { isDefault: true, updatedAt: timestamp });
+      await tx.set('address_default_pointers', pointerId, { userId: user._id, addressId: id, updatedAt: timestamp, createdAt: pointer && pointer.createdAt || timestamp });
+      return { ...currentTarget, isDefault: true, updatedAt: timestamp };
+    });
+  }
+
+  async function userSetDefaultAddress(payload) {
+    const user = await ensureWechatUser();
+    const address = await setDefaultAddressForUser(user, payload.id);
     return { address: safeAddress(address) };
   }
 
@@ -1013,8 +1147,31 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     const id = string(payload.id, '收货地址 ID', { required: true, max: 80 });
     const existing = await store.findOne('addresses', { _id: id, userId: user._id, status: 'active' });
     if (!existing) fail('ADDRESS_NOT_FOUND', '收货地址不存在。');
-    await store.update('addresses', id, { status: 'deleted', deletedAt: nowIso(clock), updatedAt: nowIso(clock) });
-    return { id, deleted: true };
+    if (typeof store.runTransaction !== 'function') fail('TRANSACTION_NOT_AVAILABLE', '当前环境不支持地址事务。');
+    const candidates = (await collectPageMatches(store, 'addresses', { where: { userId: user._id, status: 'active' }, orderBy: [{ field: 'createdAt', direction: 'asc' }] }, (item) => item._id !== id))
+      .sort((left, right) => String(left.createdAt || '').localeCompare(String(right.createdAt || '')) || String(left._id).localeCompare(String(right._id)));
+    const pointerId = `address_default_${sha256(user._id).slice(0, 40)}`;
+    return store.runTransaction(async (tx) => {
+      const current = await tx.getById('addresses', id);
+      if (!current || current.userId !== user._id || current.status !== 'active') fail('ADDRESS_NOT_FOUND', '收货地址不存在。');
+      const pointer = await tx.getById('address_default_pointers', pointerId);
+      const timestamp = nowIso(clock);
+      await tx.update('addresses', id, { status: 'deleted', isDefault: false, deletedAt: timestamp, updatedAt: timestamp });
+      const candidateIds = [...new Set([pointer && pointer.addressId, ...candidates.map((candidate) => candidate._id)].filter((candidateId) => candidateId && candidateId !== id))];
+      const freshCandidates = [];
+      for (const candidateId of candidateIds) {
+        const fresh = await tx.getById('addresses', candidateId);
+        if (fresh && fresh.userId === user._id && fresh.status === 'active') freshCandidates.push(fresh);
+      }
+      freshCandidates.sort((left, right) => String(left.createdAt || '').localeCompare(String(right.createdAt || '')) || String(left._id).localeCompare(String(right._id)));
+      const nextDefault = freshCandidates[0] || null;
+      for (const fresh of freshCandidates) {
+        if (fresh.isDefault !== (nextDefault && fresh._id === nextDefault._id)) await tx.update('addresses', fresh._id, { isDefault: Boolean(nextDefault && fresh._id === nextDefault._id), updatedAt: timestamp });
+      }
+      if (nextDefault) await tx.set('address_default_pointers', pointerId, { userId: user._id, addressId: nextDefault._id, updatedAt: timestamp, createdAt: pointer && pointer.createdAt || timestamp });
+      else if (pointer) await tx.remove('address_default_pointers', pointerId);
+      return { id, deleted: true, defaultAddress: nextDefault ? safeAddress({ ...nextDefault, isDefault: true, updatedAt: timestamp }) : null };
+    });
   }
 
   async function userCart(payload) {
@@ -1040,14 +1197,26 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     const product = await store.findOne('products', { _id: sku.productId, status: 'on_sale' });
     if (!product || !audienceVisible(product.audienceType, user)) fail('PRODUCT_NOT_AVAILABLE', '当前账号不可购买该商品。');
     const timestamp = nowIso(clock);
-    const existing = await store.findOne('cart_items', { userId: user._id, skuId });
     const patch = { quantity, selected: payload.selected !== false, updatedAt: timestamp };
+    const existing = await store.findOne('cart_items', { userId: user._id, skuId });
     let item;
     if (existing) {
       await store.update('cart_items', existing._id, patch);
       item = { ...existing, ...patch };
     } else {
-      item = await store.create('cart_items', { userId: user._id, skuId, ...patch, createdAt: timestamp });
+      if (typeof store.runTransaction !== 'function') fail('TRANSACTION_NOT_AVAILABLE', '当前环境不支持购物车事务。');
+      const id = require('./lib/transaction-ids').stableDocumentId('cart', [user._id, skuId]);
+      item = await store.runTransaction(async (tx) => {
+        const current = await tx.getById('cart_items', id);
+        if (current) {
+          if (current.userId !== user._id || current.skuId !== skuId) fail('CART_ITEM_ID_CONFLICT', '购物车稳定 ID 冲突。');
+          await tx.update('cart_items', id, patch);
+          return { ...current, ...patch };
+        }
+        const created = { _id: id, userId: user._id, skuId, ...patch, createdAt: timestamp };
+        await tx.set('cart_items', id, created);
+        return created;
+      });
     }
     return { item: pick(item, ['_id', 'skuId', 'quantity', 'selected']) };
   }
@@ -1063,19 +1232,27 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
 
   async function checkoutQuote(payload) {
     const user = await ensureWechatUser();
-    const addressId = string(payload.addressId, '收货地址 ID', { required: true, max: 80 });
+    const fulfillmentType = string(payload.fulfillmentType || 'delivery', '履约方式', { required: true, max: 20 });
     const warehouseId = string(payload.warehouseId, '仓库 ID', { required: true, max: 80 });
-    const address = await store.findOne('addresses', { _id: addressId, userId: user._id, status: 'active' });
-    if (!address || !address.regionCode) fail('ADDRESS_NOT_AVAILABLE', '请选择有效且包含配送区域的收货地址。');
-    const quote = await buildQuote({ store, user, warehouseId, regionCode: address.regionCode, items: payload.items, channel: payload.channel, now: clock(), deliverySlotId: payload.deliverySlotId });
+    let address = null;
+    if (fulfillmentType === 'delivery') {
+      const addressId = string(payload.addressId, '收货地址 ID', { required: true, max: 80 });
+      address = await store.findOne('addresses', { _id: addressId, userId: user._id, status: 'active' });
+      if (!address || !address.regionCode) fail('ADDRESS_NOT_AVAILABLE', '请选择有效且包含配送区域的收货地址。');
+    }
+    if (payload.bundleId && (payload.groupCampaignId || payload.acceptedQuoteToken)) fail('PROMOTION_CONFLICT', '套餐不能与拼团或询价报价同时使用。');
+    const acceptedQuote = payload.bundleId ? { overrides: {} } : await acceptedQuoteOverrides(store, user, payload.acceptedQuoteToken, payload.items, clock());
+    const quote = await buildQuote({ store, user, warehouseId, regionCode: address && address.regionCode, items: payload.items, channel: payload.channel, now: clock(), deliverySlotId: payload.deliverySlotId, fulfillmentType, pickupSiteId: payload.pickupSiteId, bundleId: payload.bundleId, bundleQuantity: payload.bundleQuantity, couponId: payload.couponId, priceOverrides: acceptedQuote.overrides });
     return { quote };
   }
 
   async function userCreateOrder(payload) {
     const user = await ensureWechatUser();
-    const paymentMethod = ['offline', 'demo'].includes(payload.paymentMethod) ? payload.paymentMethod : 'wechat';
-    if (paymentMethod === 'offline') {
-      if (user.userType !== 'b' || user.businessStatus !== 'approved') fail('OFFLINE_PAYMENT_FORBIDDEN', '线下结算仅限已审核的商家采购账号。');
+    const existing = await findExistingOrder(store, user, payload.idempotencyKey);
+    if (existing) return { order: safeOrder(existing), idempotent: true };
+    const paymentMethod = ['offline', 'demo', 'credit'].includes(payload.paymentMethod) ? payload.paymentMethod : 'wechat';
+    if (paymentMethod === 'offline' || paymentMethod === 'credit') {
+      if (user.userType !== 'b' || user.businessStatus !== 'approved') fail(paymentMethod === 'credit' ? 'CREDIT_PAYMENT_FORBIDDEN' : 'OFFLINE_PAYMENT_FORBIDDEN', paymentMethod === 'credit' ? '账期结算仅限已审核的商家采购账号。' : '线下结算仅限已审核的商家采购账号。');
     } else if (paymentMethod === 'demo') {
       if (!demoMode || payload.groupCampaignId || payload.groupId) fail('DEMO_ORDER_FORBIDDEN', '演示订单仅在测试环境的非拼团订单中可用。');
     } else if (typeof paymentPreparer !== 'function') {
@@ -1101,8 +1278,11 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     const id = string(payload.id, '订单 ID', { required: true, max: 80 });
     const order = await store.findOne('orders', { _id: id, userId: user._id });
     if (!order) fail('ORDER_NOT_FOUND', '订单不存在。');
-    const items = await store.list('order_items', { where: { orderId: id }, page: 1, pageSize: 100 });
-    return { order: safeOrder(order), items: items.rows.map(safeOrderItem) };
+    const snapshots = Array.isArray(order.itemsSnapshot) ? order.itemsSnapshot : [];
+    const itemRows = snapshots.length
+      ? snapshots.map((item, index) => ({ ...item, _id: item._id || (order.itemIds || [])[index] || '', orderItemId: item.orderItemId || item._id || (order.itemIds || [])[index] || '', orderId: id }))
+      : (await store.list('order_items', { where: { orderId: id }, page: 1, pageSize: 100 })).rows;
+    return { order: safeOrder(order), items: itemRows.map(safeOrderItemDetail) };
   }
 
   async function userCancelOrder(payload) {
@@ -1126,6 +1306,8 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
         if (reservation && reservation.status === 'reserved') await consumeReservation(tx, reservation, order, clock(), 'order_complete_consume', user._id, `order-complete:${order._id}`);
         else if (!reservation || reservation.status !== 'consumed') fail('ORDER_RESERVATION_INVALID', '订单库存预占记录异常。');
       }
+      if (order.paymentMethod === 'credit') await convertCredit(tx, order, clock());
+      await awardOrderPoints(tx, order, clock());
       await tx.update('orders', id, { status: 'completed', completedAt: timestamp, updatedAt: timestamp });
       return { order: safeOrder({ ...order, status: 'completed', completedAt: timestamp, updatedAt: timestamp }), idempotent: false };
     });
@@ -1159,14 +1341,78 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
   async function userRequestRefund(payload) {
     const user = await ensureWechatUser();
     const result = await requestRefund({ store, user, payload, now: clock() });
-    return { refund: pick(result.refund, ['_id', 'refundNo', 'orderId', 'amountCent', 'currency', 'reason', 'status', 'createdAt', 'updatedAt']), idempotent: result.idempotent };
+    if (!result.idempotent) await audit(null, 'refunds.request', 'refund', result.refund._id, { userId: user._id, orderId: result.refund.orderId, itemCount: (result.refund.items || []).length });
+    return { refund: safeRefund(result.refund), idempotent: result.idempotent };
+  }
+
+  async function userRefunds(payload) {
+    const user = await ensureWechatUser();
+    const listed = await store.list('refunds', { where: { userId: user._id }, orderBy: [{ field: 'createdAt', direction: 'desc' }], ...pageParams(payload) });
+    return { ...listed, rows: listed.rows.map((refund) => safeRefund(refund)) };
+  }
+
+  async function userRefund(payload) {
+    const user = await ensureWechatUser();
+    const id = string(payload.id, '售后单 ID', { required: true, max: 80 });
+    const refund = await store.findOne('refunds', { _id: id, userId: user._id });
+    if (!refund) fail('REFUND_NOT_FOUND', '售后申请不存在。');
+    return { refund: safeRefund(refund), media: await resolveRefundEvidence(refund, user._id) };
+  }
+
+  async function resolveRefundEvidence(refund, ownerUserId = '') {
+    const rows = [];
+    for (const id of refund.mediaIds || []) {
+      const media = await store.getById('media_assets', id);
+      if (!media || media.enabled === false || media.purpose !== 'aftersale_evidence' || (ownerUserId && media.userId !== ownerUserId)) continue;
+      rows.push(pick(media, ['_id', 'type', 'fileId', 'mimeType', 'sizeBytes']));
+    }
+    if (typeof mediaUrlResolver !== 'function' || !rows.length) return rows;
+    const urlMap = await mediaUrlResolver(rows.map((item) => item.fileId).filter(Boolean));
+    return rows.map((item) => urlMap && urlMap[item.fileId] ? { ...item, url: urlMap[item.fileId] } : item);
+  }
+
+  async function userUploadRefundMedia(payload, options = {}) {
+    const user = await ensureWechatUser();
+    const purpose = options.purpose === 'review_evidence' ? 'review_evidence' : 'aftersale_evidence';
+    const label = purpose === 'review_evidence' ? '评价晒单' : '售后凭证';
+    if (typeof storageUploader !== 'function') fail('MEDIA_UPLOAD_UNAVAILABLE', '售后凭证上传服务尚未配置。');
+    const type = ['image', 'video'].includes(payload.type) ? payload.type : '';
+    if (!type) fail('MEDIA_TYPE_INVALID', '售后凭证只支持图片或视频。');
+    const mimeType = string(payload.mimeType, '凭证类型', { required: true, max: 80 }).toLowerCase();
+    const allowedMimeTypes = type === 'image' ? ['image/jpeg', 'image/png', 'image/webp'] : ['video/mp4', 'video/webm', 'video/quicktime'];
+    if (!allowedMimeTypes.includes(mimeType)) fail('MEDIA_MIME_INVALID', '售后凭证格式不受支持。');
+    const fileName = string(payload.fileName, '文件名', { required: true, max: 160 });
+    const contentBase64 = string(payload.contentBase64, '文件内容', { required: true, max: 14000000 }).replace(/^data:[^;]+;base64,/, '');
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(contentBase64)) fail('MEDIA_CONTENT_INVALID', '文件内容不是有效的 Base64。');
+    const sizeBytes = Buffer.byteLength(contentBase64, 'base64');
+    const declaredSizeBytes = integer(payload.sizeBytes, 0);
+    if (declaredSizeBytes && Math.abs(declaredSizeBytes - sizeBytes) > 1024) fail('MEDIA_SIZE_INVALID', '声明的文件大小与实际内容不一致。');
+    const maxSizeBytes = type === 'image' ? 4 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (!sizeBytes || sizeBytes > maxSizeBytes) fail('MEDIA_SIZE_INVALID', `售后${type === 'image' ? '图片' : '视频'}不能超过 ${type === 'image' ? 4 : 10} MB。`);
+    const extension = ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.mov' })[mimeType];
+    const safeBaseName = fileName.replace(/[^0-9A-Za-z_\-.\u4e00-\u9fff]/g, '_').replace(/\.[^.]+$/, '') || 'evidence';
+    const timestamp = nowIso(clock);
+    const cloudPath = `mengshixian/${purpose === 'review_evidence' ? 'reviews' : 'aftersale'}/${user._id}/${timestamp.slice(0, 10)}/${randomId()}-${safeBaseName}${extension}`;
+    const fileId = await storageUploader({ cloudPath, contentBase64, mimeType, sizeBytes, purpose, userId: user._id });
+    if (!fileId) fail('MEDIA_UPLOAD_FAILED', '售后凭证上传未返回文件 ID。');
+    const media = await store.create('media_assets', { name: fileName, type, fileId, mimeType, sizeBytes, purpose, businessEvidence: purpose === 'aftersale_evidence', publicApproved: false, userId: user._id, source: 'client', temporary: false, enabled: true, targetPlatforms: ['miniapp', 'web'], version: 1, createdAt: timestamp, updatedAt: timestamp });
+    const resolved = typeof mediaUrlResolver === 'function' ? await mediaUrlResolver([fileId]) : {};
+    await audit(null, purpose === 'review_evidence' ? 'reviews.media.upload' : 'refunds.media.upload', 'media_asset', media._id, { userId: user._id, type, mimeType, sizeBytes, label });
+    return { mediaId: media._id, type, mimeType, sizeBytes, url: resolved && resolved[fileId] || '' };
   }
 
   async function adminReviewRefund(payload) {
     const { admin } = await getAdmin(payload, 'refunds.write');
     const result = await reviewRefund({ store, admin, payload, now: clock() });
-    await audit(admin, 'refunds.review', 'refund', result.refund._id, { status: result.refund.status, decision: payload.decision });
-    return { refund: pick(result.refund, ['_id', 'refundNo', 'orderId', 'amountCent', 'currency', 'reason', 'status', 'reviewNote', 'reviewedAt']) };
+    if (!result.idempotent) await audit(admin, 'refunds.review', 'refund', result.refund._id, { status: result.refund.status, decision: payload.decision });
+    return { refund: safeRefund(result.refund, true), idempotent: result.idempotent };
+  }
+
+  async function adminProcessRefund(payload) {
+    const { admin } = await getAdmin(payload, 'refunds.write');
+    const result = await processRefund({ store, admin, payload, now: clock() });
+    if (!result.idempotent) await audit(admin, 'refunds.process', 'refund', result.refund._id, { action: payload.action, status: result.refund.status });
+    return { refund: safeRefund(result.refund, true), idempotent: result.idempotent };
   }
 
   async function refundNotify(payload) {
@@ -1190,12 +1436,27 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     const scopeId = string(payload.scopeId, '价格适用对象 ID', { max: 100 });
     if (scopeType !== 'public' && !scopeId) fail('VALIDATION_ERROR', '定向价格必须指定适用对象。');
     const timestamp = nowIso(clock);
+    const quantityRulePatch = {};
+    if (payload.quantityTiers !== undefined) quantityRulePatch.quantityTiers = normalizeQuantityTiers(payload.quantityTiers);
+    if (payload.minOrderQuantity !== undefined) {
+      quantityRulePatch.minOrderQuantity = Number(payload.minOrderQuantity);
+      if (!Number.isInteger(quantityRulePatch.minOrderQuantity) || quantityRulePatch.minOrderQuantity < 0 || quantityRulePatch.minOrderQuantity > 999) fail('VALIDATION_ERROR', '价格规则起订量必须是 0 到 999 的整数，0 表示继承 SKU。');
+    }
+    if (payload.orderMultiple !== undefined) {
+      quantityRulePatch.orderMultiple = Number(payload.orderMultiple);
+      if (!Number.isInteger(quantityRulePatch.orderMultiple) || quantityRulePatch.orderMultiple < 0 || quantityRulePatch.orderMultiple > 999) fail('VALIDATION_ERROR', '价格规则购买倍数必须是 0 到 999 的整数，0 表示继承 SKU。');
+    }
+    const metadataPatch = {};
+    if (payload.source !== undefined) metadataPatch.source = ['client', 'ai_generated', 'demo', 'admin_upload'].includes(payload.source) ? payload.source : '';
+    if (payload.temporary !== undefined) metadataPatch.temporary = payload.temporary === true;
+    if (payload.demoNote !== undefined) metadataPatch.demoNote = string(payload.demoNote, '演示说明', { max: 300 });
     const patch = {
       skuId, scopeType, scopeId, channel: ['all', 'miniapp', 'web'].includes(payload.channel) ? payload.channel : 'all',
       amountCent: cents(payload.amountCent === undefined ? payload.price : payload.amountCent, '商品价格'), currency: 'CNY',
       priority: integer(payload.priority, 0), validFrom: string(payload.validFrom, '生效开始时间', { max: 40 }), validTo: string(payload.validTo, '生效结束时间', { max: 40 }),
-      status: ['draft', 'active', 'disabled'].includes(payload.status) ? payload.status : 'draft', ...demoMetadata(payload), updatedAt: timestamp
+      status: ['draft', 'active', 'disabled'].includes(payload.status) ? payload.status : 'draft', ...quantityRulePatch, ...metadataPatch, updatedAt: timestamp
     };
+    if (patch.status === 'active' && (patch.temporary || ['ai_generated', 'demo'].includes(patch.source))) fail('TEMPORARY_CANNOT_ACTIVATE', 'AI 或临时价格只能保存为草稿，不能启用。');
     if (patch.validFrom && Number.isNaN(new Date(patch.validFrom).getTime())) fail('VALIDATION_ERROR', '生效开始时间不合法。');
     if (patch.validTo && Number.isNaN(new Date(patch.validTo).getTime())) fail('VALIDATION_ERROR', '生效结束时间不合法。');
     let rule;
@@ -1206,9 +1467,9 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
       await store.update('prices', id, patch);
       rule = { ...existing, ...patch, _id: id };
     } else {
-      rule = await store.create('prices', { ...patch, createdBy: admin._id, createdAt: timestamp });
+      rule = await store.create('prices', { quantityTiers: [], minOrderQuantity: 0, orderMultiple: 0, ...demoMetadata(payload), ...patch, createdBy: admin._id, createdAt: timestamp });
     }
-    await audit(admin, 'pricing.upsert', 'price', rule._id, { skuId, scopeType, scopeId, amountCent: rule.amountCent, status: rule.status });
+    await audit(admin, 'pricing.upsert', 'price', rule._id, { skuId, scopeType, scopeId, amountCent: rule.amountCent, quantityTierCount: (rule.quantityTiers || []).length, minOrderQuantity: rule.minOrderQuantity || 0, orderMultiple: rule.orderMultiple || 0, status: rule.status });
     return rule;
   }
 
@@ -1238,6 +1499,10 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
         const amountCent = cents(variant.amountCent === undefined ? entry.amountCent : variant.amountCent, '商品价格');
         const stock = integer(variant.initialStock === undefined ? entry.initialStock : variant.initialStock, 0);
         if (stock <= 0) fail('VALIDATION_ERROR', '初始库存必须大于 0。');
+        const minOrderQuantity = variant.minOrderQuantity === undefined ? 1 : Number(variant.minOrderQuantity);
+        const orderMultiple = variant.orderMultiple === undefined ? 1 : Number(variant.orderMultiple);
+        if (!Number.isInteger(minOrderQuantity) || minOrderQuantity < 1 || minOrderQuantity > 999) fail('VALIDATION_ERROR', '演示 SKU 起订量必须是 1 到 999 的整数。');
+        if (!Number.isInteger(orderMultiple) || orderMultiple < 1 || orderMultiple > 999) fail('VALIDATION_ERROR', '演示 SKU 购买倍数必须是 1 到 999 的整数。');
         const existingSku = await store.getById('product_skus', skuId);
         const skuPatch = {
           productId: job.productId,
@@ -1247,7 +1512,7 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
           weightUnit: string(variant.weightUnit, '重量单位', { max: 20 }),
           piecesPerCase: integer(variant.piecesPerCase, 0),
           packageUnit: string(variant.packageUnit, '包装单位', { required: true, max: 100 }),
-          barcode: '', mediaIds: [], sort: integer(variant.sort, variantIndex * 10), status: 'on_sale', sourceImportId: job._id,
+          barcode: '', mediaIds: [], minOrderQuantity, orderMultiple, sort: integer(variant.sort, variantIndex * 10), status: 'on_sale', sourceImportId: job._id,
           ...metadata, updatedAt: timestamp, createdAt: existingSku && existingSku.createdAt || timestamp
         };
         if (existingSku) await store.update('product_skus', skuId, skuPatch);
@@ -1295,7 +1560,8 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     const sku = await store.findOne('product_skus', { _id: skuId });
     if (!sku) fail('SKU_NOT_FOUND', '活动 SKU 不存在。');
     const timestamp = nowIso(clock);
-    const patch = { title: string(payload.title, '活动标题', { required: true, max: 100 }), skuId, groupSize: integer(payload.groupSize, 0), durationMinutes: integer(payload.durationMinutes, 0), groupPriceCent: cents(payload.groupPriceCent === undefined ? payload.groupPrice : payload.groupPriceCent, '拼团价格'), coverMediaId: await validateMediaReference(payload.coverMediaId, '活动封面素材 ID', 'image'), targetUserType: ['all', 'b', 'c'].includes(payload.targetUserType) ? payload.targetUserType : 'all', startAt: string(payload.startAt, '开始时间', { max: 40 }), endAt: string(payload.endAt, '结束时间', { max: 40 }), sort: integer(payload.sort, 0), status: ['draft', 'active', 'disabled'].includes(payload.status) ? payload.status : 'draft', updatedAt: timestamp };
+    const patch = { title: string(payload.title, '活动标题', { required: true, max: 100 }), skuId, groupSize: integer(payload.groupSize, 0), durationMinutes: integer(payload.durationMinutes, 0), groupPriceCent: cents(payload.groupPriceCent === undefined ? payload.groupPrice : payload.groupPriceCent, '拼团价格'), coverMediaId: await validateMediaReference(payload.coverMediaId, '活动封面素材 ID', 'image'), targetUserType: ['all', 'b', 'c'].includes(payload.targetUserType) ? payload.targetUserType : 'all', startAt: string(payload.startAt, '开始时间', { max: 40 }), endAt: string(payload.endAt, '结束时间', { max: 40 }), sort: integer(payload.sort, 0), status: ['draft', 'active', 'disabled'].includes(payload.status) ? payload.status : 'draft', ...demoMetadata(payload), updatedAt: timestamp };
+    if (patch.status === 'active' && (patch.temporary || ['ai_generated', 'demo'].includes(patch.source))) fail('TEMPORARY_CANNOT_ACTIVATE', 'AI 或临时拼团活动不能启用。');
     if (patch.groupSize < 2 || patch.groupSize > 12) fail('VALIDATION_ERROR', '拼团人数必须在 2 到 12 人之间。');
     if (patch.durationMinutes < 5 || patch.durationMinutes > 10080) fail('VALIDATION_ERROR', '拼团有效期必须在 5 分钟到 7 天之间。');
     if (patch.startAt && Number.isNaN(new Date(patch.startAt).getTime())) fail('VALIDATION_ERROR', '活动开始时间不合法。');
@@ -1476,6 +1742,35 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     return slot;
   }
 
+  async function adminUpsertPickupSite(payload) {
+    const { admin } = await getAdmin(payload, 'delivery.write');
+    const warehouseId = string(payload.warehouseId, '仓库 ID', { required: true, max: 80 });
+    const warehouse = await store.findOne('warehouses', { _id: warehouseId });
+    const status = ['active', 'disabled'].includes(payload.status) ? payload.status : 'active';
+    if (status === 'active' && (!warehouse || warehouse.status !== 'active')) fail('WAREHOUSE_NOT_AVAILABLE', '启用自提点必须关联启用仓库。');
+    const timestamp = nowIso(clock);
+    const patch = {
+      name: string(payload.name, '自提点名称', { required: true, max: 80 }),
+      address: string(payload.address, '自提点地址', { required: true, max: 200 }),
+      regionCode: string(payload.regionCode, '自提点区域编码', { required: true, max: 80 }),
+      warehouseId,
+      openingHours: string(payload.openingHours, '营业时间', { max: 200 }),
+      status,
+      sort: integer(payload.sort, 0),
+      updatedAt: timestamp
+    };
+    let site;
+    if (payload.id) {
+      const id = string(payload.id, '自提点 ID', { required: true, max: 80 });
+      const existing = await store.findOne('pickup_sites', { _id: id });
+      if (!existing) fail('PICKUP_SITE_NOT_FOUND', '自提点不存在。');
+      await store.update('pickup_sites', id, patch);
+      site = { ...existing, ...patch, _id: id };
+    } else site = await store.create('pickup_sites', { ...patch, createdAt: timestamp });
+    await audit(admin, 'delivery.pickup_site.upsert', 'pickup_site', site._id, { name: site.name, warehouseId, status: site.status });
+    return site;
+  }
+
   async function adminTransitionOrder(payload) {
     const { admin } = await getAdmin(payload, 'orders.write');
     const id = string(payload.id, '订单 ID', { required: true, max: 80 });
@@ -1492,12 +1787,26 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
       const patch = { status: nextStatus, updatedAt: timestamp };
       if (nextStatus === 'shipping') patch.shipInfo = { carrier: string(payload.carrier, '配送承运方', { max: 80 }), trackingNo: string(payload.trackingNo, '运单号', { max: 100 }), shippedAt: timestamp };
       if (nextStatus === 'delivered') patch.deliveredAt = timestamp;
+      if (nextStatus === 'completed') {
+        for (const reservation of await orderReservations(tx, order)) {
+          if (reservation && reservation.status === 'reserved') await consumeReservation(tx, reservation, order, clock(), 'admin_order_complete_consume', admin._id, `admin-complete:${order._id}`);
+          else if (!reservation || reservation.status !== 'consumed') fail('ORDER_RESERVATION_INVALID', '订单库存预占记录异常。');
+        }
+        if (order.paymentMethod === 'credit') await convertCredit(tx, order, clock());
+        await awardOrderPoints(tx, order, clock());
+        patch.completedAt = timestamp;
+      }
       if (nextStatus === 'cancelled') {
         patch.cancelledAt = timestamp;
         patch.cancelReason = 'admin_cancelled';
         // 与用户侧取消保持一致：后台取消未支付订单必须在同一事务内释放库存预占与拼团名额。
         for (const reservation of await orderReservations(tx, order)) await releaseReservation(tx, reservation, order, clock(), 'admin_cancel_release');
+        if (order.paymentMethod === 'credit') await releaseCredit(tx, order, clock(), 'admin_cancelled');
         await releaseSlot(tx, { groupId: order.groupId, orderId: order._id, now: clock() });
+        if (order.couponSnapshot && order.couponSnapshot.userCouponId) {
+          const coupon = await tx.getById('user_coupons', order.couponSnapshot.userCouponId);
+          if (coupon && coupon.userId === order.userId && coupon.status === 'used' && coupon.usedOrderId === order._id) await tx.update('user_coupons', coupon._id, { status: 'available', usedOrderId: '', usedAt: '', releasedAt: timestamp, updatedAt: timestamp });
+        }
       }
       await tx.update('orders', id, patch);
       return { order: safeOrder({ ...order, ...patch }), from: order.status };
@@ -1506,12 +1815,42 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     return { order: result.order };
   }
 
-  async function adminOrderFulfillmentContact(payload) {
-    const { admin } = await getAdmin(payload, 'orders.read');
-    if (!piiEncryptionKey || String(piiEncryptionKey).length < 16) fail('PII_ENCRYPTION_NOT_CONFIGURED', '个人信息加密尚未配置，不能读取履约联系方式。');
+  async function adminOrder(payload) {
+    await getAdmin(payload, 'orders.read');
     const id = string(payload.id, '订单 ID', { required: true, max: 80 });
     const order = await store.findOne('orders', { _id: id });
     if (!order) fail('ORDER_NOT_FOUND', '订单不存在。');
+    const snapshots = Array.isArray(order.itemsSnapshot) ? order.itemsSnapshot : [];
+    const itemRows = snapshots.length
+      ? snapshots.map((item, index) => ({ ...item, _id: item._id || (order.itemIds || [])[index] || '', orderItemId: item.orderItemId || item._id || (order.itemIds || [])[index] || '', orderId: id }))
+      : (await store.list('order_items', { where: { orderId: id }, page: 1, pageSize: 100 })).rows;
+    return { order: safeOrder(order), items: itemRows.map(safeOrderItemDetail) };
+  }
+
+  async function adminRefunds(payload) {
+    await getAdmin(payload, 'refunds.read');
+    const listed = await store.list('refunds', { orderBy: [{ field: 'createdAt', direction: 'desc' }], ...pageParams(payload) });
+    return { ...listed, rows: listed.rows.map((refund) => safeRefund(refund, true)) };
+  }
+
+  async function adminRefund(payload) {
+    await getAdmin(payload, 'refunds.read');
+    const id = string(payload.id, '售后单 ID', { required: true, max: 80 });
+    const refund = await store.findOne('refunds', { _id: id });
+    if (!refund) fail('REFUND_NOT_FOUND', '售后申请不存在。');
+    return { refund: safeRefund(refund, true), media: await resolveRefundEvidence(refund) };
+  }
+
+  async function adminOrderFulfillmentContact(payload) {
+    const { admin } = await getAdmin(payload, 'orders.read');
+    const id = string(payload.id, '订单 ID', { required: true, max: 80 });
+    const order = await store.findOne('orders', { _id: id });
+    if (!order) fail('ORDER_NOT_FOUND', '订单不存在。');
+    if (order.fulfillmentType === 'pickup') {
+      await audit(admin, 'orders.fulfillment_contact.read', 'order', id, { purpose: string(payload.purpose || 'pickup', '读取用途', { max: 80 }) });
+      return { orderId: id, fulfillmentType: 'pickup', pickupSite: order.pickupSiteSnapshot || null };
+    }
+    if (!piiEncryptionKey || String(piiEncryptionKey).length < 16) fail('PII_ENCRYPTION_NOT_CONFIGURED', '个人信息加密尚未配置，不能读取履约联系方式。');
     // 优先匹配手机号密文与订单一致的地址，避免多地址用户解出与订单无关的联系方式
     const address = order.fulfillmentContactCiphertext
       ? await store.findOne('addresses', { userId: order.userId, status: 'active', phoneCiphertext: order.fulfillmentContactCiphertext }) || await store.findOne('addresses', { userId: order.userId, status: 'active' })
@@ -1520,7 +1859,7 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     if (!phoneCiphertext) fail('FULFILLMENT_CONTACT_NOT_AVAILABLE', '订单关联的收货联系方式不可用。');
     const phone = decryptText(phoneCiphertext, piiEncryptionKey);
     await audit(admin, 'orders.fulfillment_contact.read', 'order', id, { purpose: string(payload.purpose || 'delivery', '读取用途', { max: 80 }) });
-    return { orderId: id, recipient: { name: order.addressSnapshot && order.addressSnapshot.name || address.name, phone, detail: order.addressSnapshot && order.addressSnapshot.detail || address.detail, regionCode: order.addressSnapshot && order.addressSnapshot.regionCode || address.regionCode } };
+    return { orderId: id, fulfillmentType: 'delivery', recipient: { name: order.addressSnapshot && order.addressSnapshot.name || address.name, phone, detail: order.addressSnapshot && order.addressSnapshot.detail || address.detail, regionCode: order.addressSnapshot && order.addressSnapshot.regionCode || address.regionCode } };
   }
 
   async function adminExpireReservations(payload) {
@@ -1537,6 +1876,50 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     return result;
   }
 
+  async function userSaved(payload, kind, operation) { const user = await ensureWechatUser(); if (kind === 'favorites' && operation === 'savedList') { const result = await store.list('favorites', { where: { userId: user._id }, orderBy: [{ field: 'updatedAt', direction: 'desc' }], allowMissingCollection: true, ...pageParams(payload) }); return result; } if (kind === 'favorites' && operation === 'savedUpsert') { const skuId = string(payload.skuId, 'SKU ID', { required: true, max: 80 }); const sku = await store.findOne('product_skus', { _id: skuId, status: 'on_sale' }); const product = sku && await store.findOne('products', { _id: sku.productId, status: 'on_sale' }); if (!product || !audienceVisible(product.audienceType, user)) fail('SKU_NOT_AVAILABLE', '商品不可收藏。'); const id = require('./lib/transaction-ids').stableDocumentId('fav', [user._id, skuId]); const old = await store.getById('favorites', id); const timestamp = nowIso(clock); const item = { _id: id, userId: user._id, skuId, quantity: Math.max(1, integer(payload.quantity, 1)), createdAt: old && old.createdAt || timestamp, updatedAt: timestamp }; await store.set('favorites', id, item); return { item, idempotent: Boolean(old) }; } if (kind === 'favorites' && operation === 'savedRemove') { const id = string(payload.id, '收藏 ID', { required: true, max: 80 }); const old = await store.findOne('favorites', { _id: id, userId: user._id }); if (!old) fail('SAVED_ITEM_NOT_FOUND', '收藏不存在。'); await store.remove('favorites', id); return { id, removed: true }; } return b2b[operation]({ store, user, kind, payload, now: clock() }); }
+  async function userRepurchase(payload, commit) { const user = await ensureWechatUser(); return b2b.repurchase({ store, user, payload, now: clock(), commit }); }
+  async function userCreditAccount() { const user = await ensureWechatUser(); return b2b.accountGet({ store, user }); }
+  async function userOrganizationList(payload, collection) { const user = await ensureWechatUser(); return b2b.organizationList({ store, user, collection, payload }); }
+  async function userInquiry(payload, operation) { const user = await ensureWechatUser(); return b2b[operation]({ store, user, payload, now: clock() }); }
+  async function adminCreditAccounts(payload) { await getAdmin(payload, 'credit.read'); return store.list('credit_accounts', { orderBy: [{ field: 'updatedAt', direction: 'desc' }], ...pageParams(payload) }); }
+  async function adminCreditAccountUpsert(payload) { const { admin } = await getAdmin(payload, 'credit.write'); const account = await b2b.adminCreditUpsert({ store, admin, payload, now: clock() }); await audit(admin, 'credit.account.upsert', 'credit_account', account._id, { organizationId: account.organizationId, creditLimitCent: account.creditLimitCent, status: account.status, source: account.source, temporary: account.temporary }); return account; }
+  async function adminFinancialList(payload, collection, permission) { await getAdmin(payload, permission); return store.list(collection, { orderBy: [{ field: 'createdAt', direction: 'desc' }], ...pageParams(payload) }); }
+  async function adminSettleReceivable(payload) {
+    const { admin } = await getAdmin(payload, 'receivables.write'); const id = string(payload.statementId, '对账单 ID', { required: true, max: 80 }); const amountCent = integer(payload.amountCent, 0); const idempotencyKey = string(payload.idempotencyKey, '幂等键', { required: true, max: 120 }); if (amountCent < 1) fail('VALIDATION_ERROR', '核销金额必须大于 0。');
+    const note = string(payload.note, '核销备注', { max: 300 });
+    const result = await store.runTransaction(async (tx) => { const operationId = require('./lib/transaction-ids').stableDocumentId('settle', [admin._id, idempotencyKey]); const oldOperation = await tx.getById('receivable_operations', operationId); if (oldOperation) { if (oldOperation.statementId !== id || oldOperation.amountCent !== amountCent) fail('IDEMPOTENCY_CONFLICT', '幂等键已用于其他核销。'); return { statement: await tx.getById('statements', id), idempotent: true }; } const statement = await tx.getById('statements', id); if (!statement || statement.status === 'paid' || amountCent > Number(statement.outstandingCent || 0)) fail('RECEIVABLE_SETTLEMENT_INVALID', '对账单不存在或核销金额不合法。'); const account = await tx.getById('credit_accounts', statement.accountId); if (!account) fail('CREDIT_ACCOUNT_NOT_FOUND', '账期账户不存在。'); const timestamp = nowIso(clock); const outstandingCent = Number(statement.outstandingCent) - amountCent; const patch = { paidCent: Number(statement.paidCent || 0) + amountCent, outstandingCent, status: outstandingCent === 0 ? 'paid' : 'partial', updatedAt: timestamp }; await tx.update('statements', id, patch); await tx.update('credit_accounts', account._id, { receivableCent: Math.max(0, Number(account.receivableCent || 0) - amountCent), updatedAt: timestamp }); await tx.set('receivable_operations', operationId, { _id: operationId, statementId: id, amountCent, note, idempotencyKey, adminId: admin._id, createdAt: timestamp }); await tx.set('receivable_ledger', operationId, { _id: operationId, organizationId: statement.organizationId, accountId: account._id, orderId: statement.orderId, statementId: id, action: 'receivable_settled', amountCent, note, occupiedChangeCent: 0, receivableChangeCent: -amountCent, idempotencyKey, createdAt: timestamp }); return { statement: { ...statement, ...patch }, idempotent: false }; }); if (!result.idempotent) await audit(admin, 'receivable.settle', 'statement', id, { amountCent, note }); return result;
+  }
+  async function adminInquiries(payload) { await getAdmin(payload, 'inquiries.read'); return store.list('inquiries', { orderBy: [{ field: 'createdAt', direction: 'desc' }], ...pageParams(payload) }); }
+  async function adminInquiryGet(payload) { await getAdmin(payload, 'inquiries.read'); const inquiry = await store.getById('inquiries', string(payload.id, '询价单 ID', { required: true, max: 80 })); if (!inquiry) fail('INQUIRY_NOT_FOUND', '询价单不存在。'); const items = await Promise.all((inquiry.itemIds || []).map((id) => store.getById('inquiry_items', id))); const quotes = await store.list('inquiry_quotes', { where: { inquiryId: inquiry._id }, orderBy: [{ field: 'version', direction: 'desc' }], page: 1, pageSize: 100 }); return { inquiry: b2b.inquirySafe(inquiry), items: items.filter(Boolean), quotes: quotes.rows.map(b2b.quoteSafe) }; }
+  async function adminInquiryQuote(payload) { const { admin } = await getAdmin(payload, 'inquiries.write'); const result = await b2b.adminInquiryQuote({ store, admin, payload, now: clock() }); await audit(admin, 'inquiry.quote', 'inquiry', payload.id, { quoteId: result.quote._id, version: result.quote.version, totalAmountCent: result.quote.totalAmountCent, source: result.quote.source, temporary: result.quote.temporary }); return result; }
+  async function adminInquiryTransition(payload) { const { admin } = await getAdmin(payload, 'inquiries.write'); const result = await b2b.adminInquiryTransition({ store, payload, now: clock() }); await audit(admin, 'inquiry.transition', 'inquiry', result.inquiry._id, { status: result.inquiry.status }); return result; }
+  async function marketingUser(payload, operation) { const user = await ensureWechatUser(); return marketing[operation]({ store, user, payload, now: clock() }); }
+  async function reviewMediaUpload(payload) { return userUploadRefundMedia(payload, { purpose: 'review_evidence' }); }
+  async function reviewEligible(payload) { const user = await ensureWechatUser(); const orders = await store.list('orders', { where: { userId: user._id, status: 'completed' }, orderBy: [{ field: 'completedAt', direction: 'desc' }], page: 1, pageSize: 100 }); const reviewed = await store.list('reviews', { where: { userId: user._id }, page: 1, pageSize: 100, allowMissingCollection: true }); const keys = new Set(reviewed.rows.map((x) => `${x.orderId}:${x.orderItemId}`)); const rows = []; for (const order of orders.rows) for (let index = 0; index < (order.itemsSnapshot || []).length; index += 1) { const item = order.itemsSnapshot[index]; const orderItemId = String(item.orderItemId || (order.itemIds || [])[index] || ''); if (orderItemId && !keys.has(`${order._id}:${orderItemId}`)) rows.push({ orderId: order._id, orderNo: order.orderNo, completedAt: order.completedAt, orderItemId, ...safeOrderItem(item) }); } const paging = pageParams(payload); const start = (paging.page - 1) * paging.pageSize; return { rows: rows.slice(start, start + paging.pageSize), total: rows.length, ...paging }; }
+  async function invoiceTitleDelete(payload) { const user = await ensureWechatUser(); const id = string(payload.id, '发票抬头 ID', { required: true, max: 80 }); const title = await store.findOne('invoice_titles', { _id: id, userId: user._id }); if (!title) fail('INVOICE_TITLE_NOT_FOUND', '发票抬头不存在。'); await store.remove('invoice_titles', id); return { id, removed: true }; }
+  function invoiceTitleForOwner(title) { return { ...pick(title, ['_id', 'type', 'name', 'address', 'bankName', 'createdAt', 'updatedAt']), taxNo: title.taxNoCiphertext ? decryptText(title.taxNoCiphertext, piiEncryptionKey) : String(title.taxNo || ''), bankAccount: title.bankAccountCiphertext ? decryptText(title.bankAccountCiphertext, piiEncryptionKey) : String(title.bankAccount || '') }; }
+  async function invoiceTitleList(payload) { const user = await ensureWechatUser(); if (!piiEncryptionKey || String(piiEncryptionKey).length < 16) fail('PII_ENCRYPTION_NOT_CONFIGURED', '个人信息加密尚未配置，不能读取发票抬头。'); const listed = await store.list('invoice_titles', { where: { userId: user._id }, orderBy: [{ field: 'createdAt', direction: 'desc' }], allowMissingCollection: true, ...pageParams(payload) }); return { ...listed, rows: listed.rows.map(invoiceTitleForOwner) }; }
+  async function invoiceTitleUpsert(payload) { const user = await ensureWechatUser(); if (!piiEncryptionKey || String(piiEncryptionKey).length < 16) fail('PII_ENCRYPTION_NOT_CONFIGURED', '个人信息加密尚未配置，不能保存发票抬头。'); const type = payload.type === 'company' ? 'company' : 'personal'; const id = string(payload.id || require('./lib/transaction-ids').stableDocumentId('invtitle', [user._id, nowIso(clock)]), '发票抬头 ID', { required: true, max: 80 }); const old = await store.getById('invoice_titles', id); if (old && old.userId !== user._id) fail('INVOICE_TITLE_NOT_FOUND', '发票抬头不存在。'); const name = string(payload.name, '抬头名称', { required: true, max: 100 }); const taxNo = type === 'company' ? string(payload.taxNo, '税号', { required: true, max: 30 }) : ''; const bankAccount = string(payload.bankAccount, '银行账号', { max: 80 }); const timestamp = nowIso(clock); const row = { _id: id, userId: user._id, type, name, taxNoCiphertext: taxNo ? encryptText(taxNo, piiEncryptionKey) : '', taxNoMasked: maskSensitive(taxNo), address: string(payload.address, '注册地址', { max: 200 }), bankName: string(payload.bankName, '开户行', { max: 100 }), bankAccountCiphertext: bankAccount ? encryptText(bankAccount, piiEncryptionKey) : '', bankAccountMasked: maskSensitive(bankAccount), createdAt: old && old.createdAt || timestamp, updatedAt: timestamp }; await store.set('invoice_titles', id, row); return { title: invoiceTitleForOwner(row) }; }
+  async function adminMarketingList(payload, collection, permission) { await getAdmin(payload, permission); return store.list(collection, { orderBy: [{ field: 'createdAt', direction: 'desc' }], ...pageParams(payload) }); }
+  async function adminBundleUpsert(payload) { const { admin } = await getAdmin(payload, 'marketing.write'); const row = await marketing.adminBundleUpsert({ store, admin, payload, now: clock() }); await audit(admin, 'bundle.upsert', 'bundle', row._id, { status: row.status, source: row.source, temporary: row.temporary }); return row; }
+  async function adminBundleSetStatus(payload) { const { admin } = await getAdmin(payload, 'marketing.write'); const id = string(payload.id, '套餐 ID', { required: true, max: 80 }); const status = string(payload.status, '套餐状态', { required: true, max: 20 }); if (!['active', 'disabled'].includes(status)) fail('VALIDATION_ERROR', '套餐状态不合法。'); const row = await store.getById('bundles', id); if (!row) fail('BUNDLE_NOT_FOUND', '套餐不存在。'); if (status === 'active' && (row.temporary === true || row.source === 'ai_generated')) fail('DRAFT_CANNOT_ACTIVATE', 'AI 或临时套餐草案不能启用。'); const patch = { status, version: Number(row.version || 0) + 1, updatedBy: admin._id, updatedAt: nowIso(clock) }; await store.update('bundles', id, patch); await audit(admin, 'bundle.set_status', 'bundle', id, { status }); return { ...row, ...patch }; }
+  async function adminCouponUpsert(payload) { const { admin } = await getAdmin(payload, 'marketing.write'); const row = await marketing.adminCouponUpsert({ store, admin, payload, now: clock() }); await audit(admin, 'coupon_template.upsert', 'coupon_template', row._id, { status: row.status, source: row.source, temporary: row.temporary }); return row; }
+  async function adminReviewDecision(payload) { const { admin } = await getAdmin(payload, 'reviews.write'); const id = string(payload.id, '评价 ID', { required: true, max: 80 }); const decision = string(payload.decision, '审核结果', { required: true, max: 20 }); if (!['approved', 'rejected'].includes(decision)) fail('VALIDATION_ERROR', '审核结果不合法。'); const review = await store.getById('reviews', id); if (!review || review.status !== 'pending') fail('REVIEW_NOT_FOUND', '评价不存在或已审核。'); const timestamp = nowIso(clock); const patch = { status: decision, reviewNote: string(payload.note, '审核备注', { max: 300 }), reviewedBy: admin._id, reviewedAt: timestamp, updatedAt: timestamp }; if (typeof store.runTransaction !== 'function') fail('TRANSACTION_NOT_AVAILABLE', '当前环境不支持评价审核事务。'); await store.runTransaction(async (tx) => { const current = await tx.getById('reviews', id); if (!current || current.status !== 'pending') fail('REVIEW_NOT_FOUND', '评价不存在或已审核。'); await tx.update('reviews', id, patch); for (const mediaId of current.mediaIds || []) { const media = await tx.getById('media_assets', mediaId); if (media && media.userId === current.userId && media.purpose === 'review_evidence') await tx.update('media_assets', mediaId, { publicApproved: decision === 'approved', reviewId: id, updatedAt: timestamp }); } }); await audit(admin, 'review.review', 'review', id, { decision }); return { review: { ...review, ...patch } }; }
+  async function adminInvoiceProcess(payload) { const { admin } = await getAdmin(payload, 'invoices.write'); const id = string(payload.id, '发票申请 ID', { required: true, max: 80 }); const action = string(payload.action, '处理动作', { required: true, max: 30 }); if (!['pending_manual', 'rejected'].includes(action)) fail(action === 'issued' ? 'INVOICE_PROVIDER_UNCONFIGURED' : 'VALIDATION_ERROR', action === 'issued' ? '开票服务商未配置，不能标记已开票。' : '发票处理动作不合法。'); const invoice = await store.getById('invoices', id); if (!invoice) fail('INVOICE_NOT_FOUND', '发票申请不存在。'); const patch = { status: action, note: string(payload.note, '处理备注', { max: 300 }), processedBy: admin._id, updatedAt: nowIso(clock) }; await store.update('invoices', id, patch); await audit(admin, 'invoice.process', 'invoice', id, { action }); return { invoice: { ...invoice, ...patch } }; }
+  function maskSensitive(value) { const text = String(value || ''); return text.length <= 4 ? (text ? '****' : '') : `${'*'.repeat(Math.min(8, text.length - 4))}${text.slice(-4)}`; }
+  function safeAdminInvoice(invoice) { const title = invoice.titleSnapshot || {}; return { ...pick(invoice, ['_id', 'userId', 'organizationId', 'orderId', 'amountCent', 'email', 'status', 'providerStatus', 'note', 'createdAt', 'updatedAt']), titleSnapshot: { _id: title._id, type: title.type, name: title.name, taxNoMasked: title.taxNoMasked || maskSensitive(title.taxNo), address: title.address || '', bankName: title.bankName || '', bankAccountMasked: title.bankAccountMasked || maskSensitive(title.bankAccount) } }; }
+  async function adminInvoices(payload) { await getAdmin(payload, 'invoices.read'); const listed = await store.list('invoices', { orderBy: [{ field: 'createdAt', direction: 'desc' }], ...pageParams(payload) }); return { ...listed, rows: listed.rows.map(safeAdminInvoice) }; }
+  async function adminInvoiceGet(payload) { const { admin } = await getAdmin(payload, 'invoices.read'); const id = string(payload.id, '发票申请 ID', { required: true, max: 80 }); const invoice = await store.getById('invoices', id); if (!invoice) fail('INVOICE_NOT_FOUND', '发票申请不存在。'); await audit(admin, 'invoice.read', 'invoice', id, {}); return { invoice: safeAdminInvoice(invoice) }; }
+  async function adminMembershipLevelUpsert(payload) { const { admin } = await getAdmin(payload, 'points.write'); const source = payload.source === 'client' ? 'client' : 'ai_generated'; const temporary = payload.temporary !== false; const status = ['draft', 'active', 'disabled'].includes(payload.status) ? payload.status : 'draft'; if (status === 'active' && (temporary || source !== 'client')) fail('DRAFT_CANNOT_ACTIVATE', 'AI 或临时会员等级草案不能启用。'); const id = string(payload.id || require('./lib/transaction-ids').stableDocumentId('membership', [String(payload.code || payload.name || ''), nowIso(clock)]), '会员等级 ID', { required: true, max: 80 }); const old = await store.getById('membership_levels', id); const row = { _id: id, code: string(payload.code, '等级编码', { required: true, max: 40 }), name: string(payload.name, '等级名称', { required: true, max: 80 }), minPoints: Math.max(0, integer(payload.minPoints, 0)), rewardRateBps: Math.max(0, integer(payload.rewardRateBps, 0)), benefits: Array.isArray(payload.benefits) ? payload.benefits.slice(0, 20).map(String) : [], status, source, temporary, version: Number(old && old.version || 0) + 1, createdAt: old && old.createdAt || nowIso(clock), updatedAt: nowIso(clock), updatedBy: admin._id }; await store.set('membership_levels', id, row); await audit(admin, 'membership_level.upsert', 'membership_level', id, { status, source, temporary }); return row; }
+  async function adminPointsAdjust(payload) { const { admin } = await getAdmin(payload, 'points.write'); const userId = string(payload.userId, '用户 ID', { required: true, max: 80 }); const change = integer(payload.change, 0); const key = string(payload.idempotencyKey, '幂等键', { required: true, max: 120 }); const reason = string(payload.reason, '调整原因', { required: true, max: 300 }); if (!change) fail('VALIDATION_ERROR', '积分调整值不能为 0。'); const ids = require('./lib/transaction-ids'); const ledgerId = ids.stableDocumentId('points_admin', [admin._id, key]); const accountId = ids.stableDocumentId('points', [userId]); const result = await store.runTransaction(async (tx) => { const oldLedger = await tx.getById('points_ledger', ledgerId); if (oldLedger) { if (oldLedger.userId !== userId || oldLedger.change !== change) fail('IDEMPOTENCY_CONFLICT', '幂等键已用于其他积分调整。'); return { ledger: oldLedger, account: await tx.getById('points_accounts', accountId), idempotent: true }; } const account = await tx.getById('points_accounts', accountId) || { _id: accountId, userId, balance: 0, lifetimeEarned: 0 }; const balance = Number(account.balance || 0) + change; if (balance < 0) fail('POINTS_BALANCE_INSUFFICIENT', '积分余额不足。'); const timestamp = nowIso(clock); const ledger = { _id: ledgerId, userId, action: 'admin_adjust', change, balanceAfter: balance, reason, adminId: admin._id, idempotencyKey: key, createdAt: timestamp }; const nextAccount = { ...account, balance, lifetimeEarned: Number(account.lifetimeEarned || 0) + Math.max(0, change), updatedAt: timestamp }; await tx.set('points_ledger', ledgerId, ledger); await tx.set('points_accounts', accountId, nextAccount); return { ledger, account: nextAccount, idempotent: false }; }); if (!result.idempotent) await audit(admin, 'points.adjust', 'user', userId, { change, reason }); return result; }
+  async function adminPointsRuleUpsert(payload) { const { admin } = await getAdmin(payload, 'points.write'); const source = payload.source === 'client' ? 'client' : 'ai_generated'; const temporary = payload.temporary !== false; const status = ['draft', 'active', 'disabled'].includes(payload.status) ? payload.status : 'draft'; if (status === 'active' && (temporary || source !== 'client')) fail('DRAFT_CANNOT_ACTIVATE', 'AI 或临时积分规则草案不能启用。'); const id = require('./lib/transaction-ids').stableDocumentId('points_rule', ['order_reward']); const old = await store.getById('points_rules', id); const row = { _id: id, code: 'order_reward', pointsPerYuan: Math.max(0, integer(payload.pointsPerYuan, 0)), status, source, temporary, version: Number(old && old.version || 0) + 1, updatedBy: admin._id, createdAt: old && old.createdAt || nowIso(clock), updatedAt: nowIso(clock) }; if (status === 'active' && row.pointsPerYuan < 1) fail('VALIDATION_ERROR', '正式订单积分规则必须配置正数奖励值。'); await store.set('points_rules', id, row); await audit(admin, 'points.rule.upsert', 'points_rule', id, { status, source, temporary }); return row; }
+  async function adminWebAccounts(payload) { await getAdmin(payload, 'users.read'); const listed = await store.list('web_login_accounts', { orderBy: [{ field: 'createdAt', direction: 'desc' }], ...pageParams(payload) }); return { ...listed, rows: listed.rows.map(webAuth.safeAccount) }; }
+  async function adminWebAccountUpsert(payload) { const { admin } = await getAdmin(payload, 'users.write'); const account = await webAuth.upsertAccount({ store, admin, payload, now: clock() }); await audit(admin, 'web_account.upsert', 'web_login_account', account._id, { userId: account.userId, status: account.status }); return { account }; }
+  async function adminWebAccountStatus(payload) { const { admin } = await getAdmin(payload, 'users.write'); const account = await webAuth.setStatus({ store, admin, payload, now: clock() }); await audit(admin, 'web_account.set_status', 'web_login_account', account._id, { status: account.status }); return { account }; }
+  async function adminWebAccountResetPassword(payload) { const { admin } = await getAdmin(payload, 'users.write'); const account = await webAuth.resetPassword({ store, admin, payload, now: clock() }); await audit(admin, 'web_account.reset_password', 'web_login_account', account._id, {}); return { account, sessionsRevoked: true }; }
+  async function groupsMine(payload) { const user = await ensureWechatUser(); const memberships = await store.list('group_members', { where: { userId: user._id }, orderBy: [{ field: 'createdAt', direction: 'desc' }], ...pageParams(payload) }); const rows = []; for (const member of memberships.rows) { const group = await store.getById('groups', member.groupId); if (group) rows.push({ group: safeGroup(group), member: pick(member, ['_id', 'status', 'paidAt', 'createdAt']) }); } return { ...memberships, rows }; }
+  async function groupRefundTasks(payload) { await getAdmin(payload, 'refunds.read'); const groups = await store.list('groups', { where: { status: 'failed' }, page: 1, pageSize: 100 }); const rows = groups.rows.filter((x) => Number(x.refundRequired || 0) > 0).map(safeGroup); return { rows, total: rows.length, page: 1, pageSize: 100 }; }
+
   async function runMaintenance(payload = {}) {
     const limit = integer(payload.limit, 50);
     const reservations = await expireReservations({ store, now: clock(), limit });
@@ -1544,6 +1927,13 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     await audit(null, 'system.maintenance.tick', 'maintenance', '', { reservations, groups });
     return { reservations, groups };
   }
+
+  const adminOps = createAdminOperations({
+    store, clock, getAdmin, audit, safeOrder, safeOrderItemDetail, safeAdminInvoice,
+    upsertProduct: adminUpsertProduct,
+    upsertPrice: adminUpsertPrice,
+    transitionOrder: adminTransitionOrder
+  });
 
   const handlers = {
     health: async () => ({
@@ -1559,15 +1949,38 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
         ,demoOrder: demoMode === true
       }
     }),
-    'auth.wechatLogin': async () => ({ user: pick(await ensureWechatUser(), ['_id', 'userType', 'status', 'organizationId', 'businessStatus', 'lastLoginAt']) }),
+    'auth.wechatLogin': async () => ({ user: pick(await ensureMiniUser(), ['_id', 'userType', 'status', 'organizationId', 'businessStatus', 'lastLoginAt']) }),
+    'auth.web.login': webLogin,
+    'auth.webLogin': webLogin,
+    'auth.web.me': webMe,
+    'auth.web.logout': webLogout,
+    'auth.web.password.change': webPasswordChange,
     'auth.me': async () => ({ user: pick(await ensureWechatUser(), ['_id', 'userType', 'status', 'organizationId', 'businessStatus', 'lastLoginAt']) }),
     'auth.applyBusiness': applyBusiness,
     'address.list': userAddresses,
     'address.upsert': userUpsertAddress,
+    'address.setDefault': userSetDefaultAddress,
     'address.delete': userDeleteAddress,
     'cart.list': userCart,
     'cart.upsert': userUpsertCartItem,
     'cart.remove': userRemoveCartItem,
+    'favorites.list': (payload) => userSaved(payload, 'favorites', 'savedList'),
+    'favorites.upsert': (payload) => userSaved(payload, 'favorites', 'savedUpsert'),
+    'favorites.remove': (payload) => userSaved(payload, 'favorites', 'savedRemove'),
+    'favorites.batchAddToCart': (payload) => userSaved(payload, 'favorites', 'savedBatchAdd'),
+    'frequent.list': (payload) => userSaved(payload, 'frequent_items', 'savedList'),
+    'frequent.upsert': (payload) => userSaved(payload, 'frequent_items', 'savedUpsert'),
+    'frequent.remove': (payload) => userSaved(payload, 'frequent_items', 'savedRemove'),
+    'frequent.batchAddToCart': (payload) => userSaved(payload, 'frequent_items', 'savedBatchAdd'),
+    'orders.repurchase.preview': (payload) => userRepurchase(payload, false),
+    'orders.repurchase.commit': (payload) => userRepurchase(payload, true),
+    'procurement.account.get': userCreditAccount,
+    'procurement.receivables.list': (payload) => userOrganizationList(payload, 'receivable_ledger'),
+    'procurement.statements.list': (payload) => userOrganizationList(payload, 'statements'),
+    'inquiries.create': (payload) => userInquiry(payload, 'inquiryCreate'),
+    'inquiries.list': (payload) => userInquiry(payload, 'inquiryList'),
+    'inquiries.get': (payload) => userInquiry(payload, 'inquiryGet'),
+    'inquiries.accept': (payload) => userInquiry(payload, 'inquiryAccept'),
     'checkout.quote': checkoutQuote,
     'orders.create': userCreateOrder,
     'orders.list': userOrders,
@@ -1577,6 +1990,9 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     'payments.wechat.notify': wechatPaymentNotify,
     'payments.wechat.prepare': userPreparePayment,
     'refunds.request': userRequestRefund,
+    'refunds.list': userRefunds,
+    'refunds.get': userRefund,
+    'refunds.media.upload': userUploadRefundMedia,
     'refunds.notify': refundNotify,
     'catalog.categories': publicCategories,
     'catalog.products': publicProducts,
@@ -1592,6 +2008,39 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     'groups.create': groupCreate,
     'groups.join': groupJoin,
     'groups.get': groupGet,
+    'groups.mine': groupsMine,
+    'groups.my.list': groupsMine,
+    'bundles.list': (payload) => marketing.bundleList({ store, payload, now: clock() }),
+    'bundles.get': (payload) => marketing.bundleGet({ store, payload, now: clock() }),
+    'bundles.quote': (payload) => marketingUser(payload, 'bundleQuote'),
+    'coupons.templates': (payload) => marketing.couponTemplates({ store, payload, now: clock() }),
+    'coupons.claim': (payload) => marketingUser(payload, 'couponClaim'),
+    'coupons.list': (payload) => marketingUser(payload, 'couponList'),
+    'points.account': (payload) => marketingUser(payload, 'pointsAccount'),
+    'points.account.get': (payload) => marketingUser(payload, 'pointsAccount'),
+    'points.signIn': (payload) => marketingUser(payload, 'pointsSignIn'),
+    'points.checkin': (payload) => marketingUser(payload, 'pointsSignIn'),
+    'points.ledger': (payload) => marketingUser({ ...payload, collection: 'points_ledger' }, 'userRows'),
+    'membership.profile': (payload) => marketingUser(payload, 'membership'),
+    'reviews.media.upload': reviewMediaUpload,
+    'reviews.eligible': reviewEligible,
+    'reviews.create': (payload) => marketingUser(payload, 'reviewCreate'),
+    'reviews.mine': (payload) => marketingUser({ ...payload, collection: 'reviews' }, 'userRows'),
+    'reviews.list': (payload) => marketing.publicReviews({ store, payload }),
+    'invoiceTitles.list': invoiceTitleList,
+    'invoiceTitles.upsert': invoiceTitleUpsert,
+    'invoiceTitles.delete': invoiceTitleDelete,
+    'invoice.headers.list': invoiceTitleList,
+    'invoice.headers.upsert': invoiceTitleUpsert,
+    'invoice.headers.delete': invoiceTitleDelete,
+    'invoices.request': (payload) => marketingUser(payload, 'invoiceRequest'),
+    'invoices.list': (payload) => marketingUser({ ...payload, collection: 'invoices' }, 'userRows'),
+    'invoices.get': async (payload) => { const user = await ensureWechatUser(); const invoice = await store.findOne('invoices', { _id: string(payload.id, '发票 ID', { required: true, max: 80 }), userId: user._id }); if (!invoice) fail('INVOICE_NOT_FOUND', '发票申请不存在。'); return { invoice }; },
+    'storedValue.account': (payload) => marketingUser(payload, 'storedAccount'),
+    'wallet.account.get': (payload) => marketingUser(payload, 'storedAccount'),
+    'storedValue.ledger': (payload) => marketingUser({ ...payload, collection: 'stored_value_ledger' }, 'userRows'),
+    'storedValue.topupIntent': (payload) => marketingUser(payload, 'topupIntent'),
+    'wallet.recharge.prepare': (payload) => marketingUser(payload, 'topupIntent'),
     'admin.bootstrap': adminBootstrap,
     'admin.login': adminLogin,
     'admin.logout': adminLogout,
@@ -1600,44 +2049,91 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     'admin.readiness': adminReadiness,
     'admin.roles.list': adminRoles,
     'admin.roles.upsert': adminUpsertRole,
+    'admin.roles.setStatus': adminOps.roleSetStatus,
+    'admin.permissions.catalog': adminOps.permissionsCatalog,
     'admin.adminUsers.list': adminAdminUsers,
     'admin.adminUsers.upsert': adminUpsertAdminUser,
     'admin.categories.list': (payload) => adminList('categories', payload, 'catalog.read', { orderBy: [{ field: 'sort', direction: 'asc' }] }),
     'admin.categories.upsert': adminUpsertCategory,
     'admin.products.list': (payload) => adminList('products', payload, 'catalog.read'),
-    'admin.products.upsert': adminUpsertProduct,
+    'admin.products.upsert': (payload) => adminOps.versionedUpsert('product', adminUpsertProduct, payload),
+    'admin.products.batchUpsert': adminOps.productsBatch,
     'admin.products.setStatus': adminSetProductStatus,
     'admin.skus.list': (payload) => adminList('product_skus', payload, 'catalog.read'),
     'admin.skus.upsert': adminUpsertSku,
     'admin.skus.setStatus': adminSetSkuStatus,
     'admin.prices.list': (payload) => adminList('prices', payload, 'pricing.read'),
-    'admin.prices.upsert': adminUpsertPrice,
+    'admin.prices.upsert': (payload) => adminOps.versionedUpsert('price', adminUpsertPrice, payload),
+    'admin.prices.batchUpsert': adminOps.pricesBatch,
     'admin.demo.seedCommerce': adminSeedDemoCommerce,
     'admin.groupCampaigns.list': (payload) => adminList('group_campaigns', payload, 'marketing.read', { orderBy: [{ field: 'sort', direction: 'asc' }] }),
-    'admin.groupCampaigns.upsert': adminUpsertGroupCampaign,
+    'admin.groupCampaigns.upsert': (payload) => adminOps.versionedUpsert('groupCampaign', adminUpsertGroupCampaign, payload),
     'admin.users.list': adminUsers,
     'admin.users.setPricingProfile': adminSetUserPricingProfile,
+    'admin.webAccounts.list': adminWebAccounts,
+    'admin.webAccounts.upsert': adminWebAccountUpsert,
+    'admin.webAccounts.setStatus': adminWebAccountStatus,
+    'admin.webAccounts.resetPassword': adminWebAccountResetPassword,
     'admin.businessApplications.list': adminBusinessApplications,
     'admin.businessApplications.review': adminReviewBusinessApplication,
     'admin.warehouses.list': (payload) => adminList('warehouses', payload, 'inventory.read', { orderBy: [{ field: 'sort', direction: 'asc' }] }),
     'admin.warehouses.upsert': adminUpsertWarehouse,
     'admin.inventory.list': (payload) => adminList('inventory', payload, 'inventory.read'),
     'admin.inventory.adjust': adminAdjustInventory,
+    'admin.inventory.ledger': adminOps.inventoryLedger,
     'admin.deliveryAreas.list': (payload) => adminList('delivery_areas', payload, 'delivery.read', { orderBy: [{ field: 'sort', direction: 'asc' }] }),
     'admin.deliveryAreas.upsert': adminUpsertDeliveryArea,
     'admin.freightRules.list': (payload) => adminList('freight_rules', payload, 'delivery.read'),
     'admin.freightRules.upsert': adminUpsertFreightRule,
     'admin.deliverySlots.list': (payload) => adminList('delivery_slots', payload, 'delivery.read', { orderBy: [{ field: 'sort', direction: 'asc' }] }),
     'admin.deliverySlots.upsert': adminUpsertDeliverySlot,
-    'admin.orders.list': async (payload) => {
-      const listed = await adminList('orders', payload, 'orders.read');
-      // 后台列表走脱敏投影：履约联系方式密文、幂等键等内部字段不随列表下发
-      return { ...listed, rows: listed.rows.map(safeOrder) };
-    },
+    'admin.pickupSites.list': (payload) => adminList('pickup_sites', payload, 'delivery.read', { orderBy: [{ field: 'sort', direction: 'asc' }] }),
+    'admin.pickupSites.upsert': adminUpsertPickupSite,
+    'admin.orders.list': adminOps.ordersSearch,
+    'admin.orders.get': adminOrder,
+    'admin.orders.notes.list': adminOps.orderNotes,
+    'admin.orders.notes.add': adminOps.orderNote,
+    'admin.orders.batchTransition': adminOps.ordersBatchTransition,
+    'admin.orders.export': adminOps.ordersExport,
+    'admin.orders.pickingList': adminOps.pickingList,
     'admin.orders.fulfillmentContact': adminOrderFulfillmentContact,
     'admin.orders.transition': adminTransitionOrder,
-    'admin.refunds.list': (payload) => adminList('refunds', payload, 'refunds.read'),
+    'admin.refunds.list': adminRefunds,
+    'admin.refunds.get': adminRefund,
     'admin.refunds.review': adminReviewRefund,
+    'admin.refunds.process': adminProcessRefund,
+    'admin.creditAccounts.list': adminCreditAccounts,
+    'admin.creditAccounts.upsert': adminCreditAccountUpsert,
+    'admin.receivables.list': adminOps.receivables,
+    'admin.receivables.settle': adminSettleReceivable,
+    'admin.statements.list': adminOps.statements,
+    'admin.inquiries.list': adminInquiries,
+    'admin.inquiries.get': adminInquiryGet,
+    'admin.inquiries.quote': adminInquiryQuote,
+    'admin.inquiries.transition': adminInquiryTransition,
+    'admin.bundles.list': (payload) => adminMarketingList(payload, 'bundles', 'marketing.read'),
+    'admin.bundles.upsert': (payload) => adminOps.versionedUpsert('bundle', adminBundleUpsert, payload),
+    'admin.bundles.setStatus': (payload) => adminOps.versionedUpsert('bundle', adminBundleSetStatus, payload),
+    'admin.groups.list': (payload) => adminMarketingList(payload, 'groups', 'marketing.read'),
+    'admin.groups.members': adminOps.groupMembers,
+    'admin.groups.refundTasks': groupRefundTasks,
+    'admin.couponTemplates.list': (payload) => adminMarketingList(payload, 'coupon_templates', 'marketing.read'),
+    'admin.couponTemplates.upsert': (payload) => adminOps.versionedUpsert('couponTemplate', adminCouponUpsert, payload),
+    'admin.couponGrants.list': adminOps.couponGrants,
+    'admin.membershipLevels.list': (payload) => adminMarketingList(payload, 'membership_levels', 'marketing.read'),
+    'admin.membershipLevels.upsert': (payload) => adminOps.versionedUpsert('membershipLevel', adminMembershipLevelUpsert, payload),
+    'admin.points.adjust': adminPointsAdjust,
+    'admin.points.accounts.list': adminOps.pointsAccounts,
+    'admin.points.ledger': adminOps.pointsLedger,
+    'admin.points.rules.list': (payload) => adminMarketingList(payload, 'points_rules', 'points.read'),
+    'admin.points.rules.upsert': (payload) => adminOps.versionedUpsert('pointsRule', adminPointsRuleUpsert, payload),
+    'admin.reviews.list': adminOps.reviews,
+    'admin.reviews.review': adminReviewDecision,
+    'admin.invoices.list': adminOps.invoices,
+    'admin.invoices.get': adminInvoiceGet,
+    'admin.invoices.process': adminInvoiceProcess,
+    'admin.storedValue.list': (payload) => adminMarketingList(payload, 'stored_value_accounts', 'storedValue.read'),
+    'admin.storedValue.ledger': adminOps.storedValueLedger,
     'admin.jobs.expireReservations': adminExpireReservations,
     'admin.jobs.expireGroups': adminExpireGroups,
     'admin.imports.list': (payload) => adminList('import_jobs', payload, 'imports.read'),
@@ -1646,25 +2142,27 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     'admin.imports.activateBatch': activateImportBatch,
     'admin.media.list': (payload) => adminList('media_assets', payload, 'media.read'),
     'admin.media.upload': adminUploadMedia,
-    'admin.media.upsert': adminUpsertMedia,
+    'admin.media.upsert': (payload) => adminOps.versionedUpsert('media', adminUpsertMedia, payload),
     'admin.media.createVersion': adminCreateMediaVersion,
     'admin.productMedia.list': adminListProductMedia,
     'admin.productMedia.upsert': adminUpsertProductMedia,
     'admin.banners.list': (payload) => adminList('banners', payload, 'content.read', { orderBy: [{ field: 'sort', direction: 'asc' }] }),
-    'admin.banners.upsert': (payload) => adminUpsertContent(payload, 'banners', 'content.write', '轮播图'),
+    'admin.banners.upsert': (payload) => adminOps.versionedUpsert('banner', (input) => adminUpsertContent(input, 'banners', 'content.write', '轮播图'), payload),
     'admin.homeSections.list': (payload) => adminList('home_sections', payload, 'content.read', { orderBy: [{ field: 'sort', direction: 'asc' }] }),
-    'admin.homeSections.upsert': (payload) => adminUpsertContent(payload, 'home_sections', 'content.write', '首页模块'),
+    'admin.homeSections.upsert': (payload) => adminOps.versionedUpsert('homeSection', (input) => adminUpsertContent(input, 'home_sections', 'content.write', '首页模块'), payload),
+    'admin.versions.list': adminOps.versionsList,
+    'admin.versions.rollback': adminOps.versionsRollback,
     'admin.audit.list': (payload) => adminList('audit_logs', payload, 'audit.read')
   };
 
   async function dispatch(event = {}) {
-    try {
+    return requestScope.run({ payload: event.payload || {}, requestId: event.requestId || '' }, async () => { try {
       const action = string(event.action, 'action', { required: true, max: 80 });
       const handler = handlers[action];
       if (!handler) return { ok: false, data: null, error: { code: 'NOT_IMPLEMENTED', message: `路由 ${action} 尚未实现。` }, requestId: event.requestId || '' };
       return success(await handler(event.payload || {}), event.requestId);
     }
-    catch (error) { return failure(error, event.requestId); }
+    catch (error) { return failure(error, event.requestId); } });
   }
 
   return { dispatch, runMaintenance };

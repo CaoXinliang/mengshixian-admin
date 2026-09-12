@@ -11,6 +11,13 @@ async function run() {
   assert.deepEqual(requests, [1, 2, 3]);
   assert.equal(normal.rows.length, 205);
 
+  const filteredRequests = [];
+  await listAll(async (_action, payload) => {
+    filteredRequests.push(payload);
+    return { rows: [], total: 0 };
+  }, 'admin.inventory.ledger', { params: { warehouseId: 'wh-1', reason: 'purchase_in' } });
+  assert.deepEqual(filteredRequests, [{ warehouseId: 'wh-1', reason: 'purchase_in', page: 1, pageSize: 100 }], '筛选参数必须随分页请求提交到服务端');
+
   let invalidCalls = 0;
   await assert.rejects(
     () => listAll(async () => { invalidCalls += 1; return { rows: [], total: 'Infinity' }; }, 'admin.imports.list'),

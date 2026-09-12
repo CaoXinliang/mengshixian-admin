@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>梦食鲜｜简单后台</title>
+  <title>梦食鲜｜运营后台</title>
   <style>
     :root { --blue:#1663d9; --blue-dark:#0d4dad; --bg:#f2f6fc; --card:#ffffff; --line:#dfe8f5; --text:#1c2b3a; --muted:#64748b; --green:#0f8a43; --red:#c93030; --orange:#b45309; }
     * { box-sizing:border-box; }
@@ -35,6 +35,9 @@
     .stat-card .num.alert { color:var(--red); }
     .stat-card .label { color:var(--muted); margin-top:4px; }
     .card-list { display:flex; flex-direction:column; gap:12px; }
+    .list-pager { display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:14px; color:var(--muted); }
+    .list-pager strong { color:var(--text); font-size:13px; }
+    .list-pager button:disabled { opacity:.45; cursor:not-allowed; }
     .oc { border:1px solid var(--line); border-radius:12px; padding:14px; }
     .oc .row1 { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
     .oc .money { font-size:20px; font-weight:800; color:var(--red); }
@@ -199,10 +202,15 @@
     .form-section .frow { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px; align-items:flex-end; }
     .form-section .frow:last-child { margin-bottom:0; }
     .form-section label.f { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--muted); flex:1; min-width:140px; }
-    .form-section input, .form-section select { padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:15px; width:100%; }
+    .form-section input, .form-section select, .form-section textarea { padding:9px 10px; border:1px solid var(--line); border-radius:8px; font-size:15px; width:100%; }
+    .form-section textarea { min-height:76px; resize:vertical; font-family:inherit; line-height:1.5; }
     .spec-block { border:1px dashed var(--line); border-radius:10px; padding:10px; margin-bottom:10px; background:#fbfdff; }
     .spec-block.new { border-style:solid; background:#f4f8ff; }
     .spec-block .head { margin-bottom:8px; }
+    .purchase-rule-box { margin:10px 0; padding:11px; border:1px solid #dbe8f2; border-radius:9px; background:#f5f9fc; }
+    .purchase-rule-box > strong { display:block; margin-bottom:8px; color:#1b4d78; font-size:13px; }
+    .draft-check { display:flex; align-items:center; gap:7px; margin:8px 0; color:#5e7184; font-size:12px; }
+    .draft-check input { width:auto; }
     .edhead { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
     @media (max-width:900px) {
       .editor-layout { grid-template-columns:1fr; }
@@ -213,41 +221,156 @@
       .pc .btns { flex:1 1 100%; flex-direction:row; justify-content:flex-start; }
       .pc .cover { width:64px; height:64px; }
     }
+    /* 普通商家后台整体框架 */
+    body { background:#f3f6f9; color:#193149; font-size:15px; }
+    header.top { min-height:64px; padding:0 26px; background:#123e68; box-shadow:0 1px 0 rgba(255,255,255,.12); }
+    header.top .brand { font-size:18px; letter-spacing:.02em; }
+    header.top .top-todo { padding:7px 11px; border-radius:8px; background:#fff3d7; color:#744b00; font-size:13px; font-weight:700; }
+    header.top .who { padding-left:12px; border-left:1px solid rgba(255,255,255,.22); }
+    .admin-layout { display:grid; grid-template-columns:258px minmax(0,1fr); width:min(100%,1680px); min-height:calc(100dvh - 64px); margin:0 auto; }
+    .side-panel { position:sticky; top:64px; display:flex; height:calc(100dvh - 64px); flex-direction:column; padding:22px 14px 18px; border-right:1px solid #dce5ee; background:#fff; }
+    .side-intro { display:grid; gap:3px; padding:0 12px 16px; }
+    .side-intro strong { font-size:18px; }
+    .side-intro span { color:var(--muted); font-size:12px; }
+    nav.tabs { display:grid; gap:4px; max-width:none; margin:0; padding:0; }
+    nav.tabs button { display:grid; grid-template-columns:34px minmax(0,1fr); align-items:center; gap:10px; width:100%; padding:10px 12px; border:0; border-radius:10px; background:transparent; color:#52677c; text-align:left; }
+    nav.tabs button:hover { background:#f0f5fa; color:#123e68; }
+    nav.tabs button.is-active { background:#e9f2fb; color:#0c4e86; box-shadow:none; }
+    nav.tabs button strong, nav.tabs button small { display:block; }
+    nav.tabs button strong { font-size:14px; font-weight:700; }
+    nav.tabs button small { margin-top:1px; color:#8191a1; font-size:11px; }
+    .menu-mark { display:grid; place-items:center; width:32px; height:32px; border-radius:9px; background:#eef2f6; color:#50667c; font-size:12px; font-weight:800; }
+    nav.tabs button.is-active .menu-mark { background:#1663d9; color:#fff; }
+    .side-foot { display:grid; gap:8px; margin-top:auto; padding:15px 12px 0; border-top:1px solid #edf1f5; color:var(--muted); font-size:12px; }
+    .side-foot a { color:#315f8a; text-decoration:none; }
+    .content-shell { min-width:0; padding:28px clamp(22px,3vw,46px) 60px; }
+    .page-head { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; max-width:1280px; margin:0 auto 20px; }
+    .page-kicker { margin:0 0 3px; color:#29715a; font-size:12px; font-weight:700; letter-spacing:.08em; }
+    .page-head h1 { margin:0; font-size:28px; line-height:1.2; letter-spacing:-.02em; }
+    .page-head p:last-child { max-width:60ch; margin:6px 0 0; color:var(--muted); }
+    .page-ready { flex:none; margin-top:5px; padding:6px 10px; border-radius:7px; background:#e7f5ed; color:#18734a; font-size:12px; }
+    main.wrap { max-width:1280px; margin:0 auto; padding:0; }
+    section.view { border:0; border-radius:16px; padding:20px; box-shadow:0 7px 24px rgba(30,62,92,.055); }
+    .dashboard-intro, .section-intro, .panel-title { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
+    .dashboard-intro { margin-bottom:16px; }
+    .dashboard-intro h2, .section-intro h2 { margin:0 0 4px; font-size:21px; }
+    .dashboard-intro p, .section-intro p, .panel-title p { margin:0; color:var(--muted); }
+    .today-summary { display:flex; gap:16px; color:#52677c; font-size:13px; }
+    .today-summary strong { display:block; color:#17324b; font-size:20px; font-variant-numeric:tabular-nums; }
+    .stat-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .stat-card { min-height:118px; border:0; border-radius:11px; padding:17px; background:#f4f7fa; }
+    .stat-card:hover { background:#ebf2f8; box-shadow:0 6px 16px rgba(34,71,104,.08); }
+    .stat-card.is-urgent { background:#fff4ee; }
+    .stat-card .num { font-size:32px; }
+    .quick-block { margin-top:24px; padding-top:18px; border-top:1px solid #e8eef4; }
+    .quick-block h3 { margin:0 0 10px; }
+    .quick-actions { display:flex; gap:10px; flex-wrap:wrap; }
+    .summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:16px 0; }
+    .summary-card { padding:16px; border-radius:11px; background:#f5f8fb; }
+    .summary-card span { display:block; color:var(--muted); font-size:12px; }
+    .summary-card strong { display:block; margin-top:5px; font-size:24px; font-variant-numeric:tabular-nums; }
+    .summary-card small { display:block; margin:6px 0 12px; color:var(--muted); line-height:1.5; }
+    .settings-grid { display:grid; grid-template-columns:minmax(280px,420px) minmax(0,1fr); gap:16px; margin-top:18px; align-items:start; }
+    .form-panel { padding:18px; border:1px solid #dfe8f0; border-radius:12px; background:#fbfcfd; }
+    .form-panel h3 { margin:0 0 6px; font-size:17px; }
+    .form-panel label { display:grid; gap:5px; margin:14px 0; color:#52677c; font-size:13px; font-weight:600; }
+    .form-panel input, .form-panel select { width:100%; padding:10px 11px; border:1px solid #cad7e3; border-radius:8px; background:#fff; color:#193149; }
+    .workflow-card { margin:0 0 14px; padding:14px 16px; border:1px solid #d9e5ef; border-radius:12px; background:#f8fbfd; }
+    .workflow-card h3 { margin:0 0 10px; font-size:16px; }
+    .workflow-steps { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+    .workflow-step { display:flex; align-items:center; gap:8px; min-width:0; padding:9px 10px; border-radius:8px; background:#eef3f7; color:#607286; font-size:12px; font-weight:700; }
+    .workflow-step::before { content:'待'; display:grid; flex:none; place-items:center; width:24px; height:24px; border-radius:50%; background:#dce5ec; color:#687a8c; font-size:10px; }
+    .workflow-step.is-done { background:#e8f6ee; color:#176c46; }
+    .workflow-step.is-done::before { content:'✓'; background:#1d8a58; color:#fff; }
+    .readiness-list { display:grid; gap:7px; margin-top:10px; }
+    .readiness-item { display:flex; align-items:flex-start; gap:8px; color:#68798a; font-size:12px; line-height:1.5; }
+    .readiness-item::before { content:'•'; color:#bd6d18; font-weight:900; }
+    .readiness-item.is-done { color:#287354; }
+    .readiness-item.is-done::before { content:'✓'; color:#198754; }
+    .publish-actions { display:flex; flex-wrap:wrap; gap:9px; align-items:center; }
+    .publish-actions .hint { flex-basis:100%; margin:0; }
+    .check-line { display:flex!important; grid-template-columns:auto 1fr; align-items:center; gap:8px!important; }
+    .check-line input { width:auto; }
+    .compact-list { display:grid; gap:9px; margin-top:12px; }
+    .compact-row { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:12px; border-radius:9px; background:#fff; border:1px solid #e1e8ef; }
+    .compact-row > div:first-child { flex:1; min-width:0; }
+    .compact-row > div:last-child { display:flex; align-items:center; gap:8px; }
+    .compact-row .grow { flex:1; min-width:0; }
+    .compact-row strong, .compact-row span { display:block; }
+    .compact-row span { color:var(--muted); font-size:12px; }
+    .marketing-note { margin:15px 0; padding:12px 14px; border-left:4px solid #2e7d5b; border-radius:0 8px 8px 0; background:#edf7f2; color:#315f4c; }
+    .admin-link { display:inline-flex; margin:12px 0 8px; padding:10px 14px; border-radius:8px; background:#e9f2fb; color:#0c4e86; font-weight:700; text-decoration:none; }
+    .help-panel ol { padding-left:20px; color:#52677c; line-height:1.9; }
+    @media (max-width:980px) {
+      .admin-layout { grid-template-columns:1fr; }
+      .side-panel { position:static; height:auto; border-right:0; border-bottom:1px solid #dce5ee; }
+      nav.tabs { grid-template-columns:repeat(3,minmax(0,1fr)); }
+      nav.tabs button small, .side-intro, .side-foot { display:none; }
+      .content-shell { padding:20px; }
+      .settings-grid { grid-template-columns:1fr; }
+      .workflow-steps { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    }
+    @media (max-width:660px) {
+      header.top { padding:8px 12px; }
+      header.top .top-todo, header.top .who { display:none; }
+      nav.tabs { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .page-head { display:block; }
+      .page-ready { display:inline-block; margin-top:10px; }
+      .stat-grid, .summary-grid { grid-template-columns:1fr; }
+      .workflow-steps { grid-template-columns:1fr; }
+      .today-summary { margin-top:10px; }
+    }
   </style>
 </head>
 <body>
   <header class="top" id="topBar" style="display:none">
-    <span class="brand">梦食鲜 · 简单后台</span>
-    <span class="who" id="whoami"></span>
+    <span class="brand">梦食鲜商家后台</span>
     <span class="spacer"></span>
-    <a href="index.html">完整版</a>
+    <span class="top-todo" id="pendingBadge">正在读取今日待办</span>
+    <span class="who" id="whoami"></span>
     <button class="linkish" id="logoutBtn">退出</button>
   </header>
 
   <div class="login-shell" id="loginView">
-    <h1>正在进入简单后台</h1>
-    <p class="hint">管理员统一从完整版后台登录，登录成功后会自动返回这里。</p>
+    <h1>正在进入运营后台</h1>
+    <p class="hint">正在检查登录状态，请稍候。</p>
   </div>
 
-  <div id="appView" style="display:none">
-    <nav class="tabs" id="tabs">
-      <button data-view="dashboard" class="is-active">今日待办</button>
-      <button data-view="orders">订单处理</button>
-      <button data-view="products">商品与价格</button>
-      <button data-view="refunds">退款售后</button>
-      <button data-view="inventory">库存</button>
-    </nav>
-    <main class="wrap">
+  <div id="appView" class="admin-layout" style="display:none">
+    <aside class="side-panel">
+      <div class="side-intro"><strong>日常经营</strong><span>从待办开始，一项一项处理</span></div>
+      <nav class="tabs" id="tabs" aria-label="商家后台菜单">
+        <button data-view="dashboard" class="is-active"><span class="menu-mark">今</span><span><strong>今日待办</strong><small>先处理最着急的事</small></span></button>
+        <button data-view="orders"><span class="menu-mark">订</span><span><strong>订单处理</strong><small>接单、拣货和配送</small></span></button>
+        <button data-view="products"><span class="menu-mark">商</span><span><strong>商品管理</strong><small>改资料、价格和上下架</small></span></button>
+        <button data-view="inventory"><span class="menu-mark">库</span><span><strong>库存管理</strong><small>入库、出库和可售数量</small></span></button>
+        <button data-view="refunds"><span class="menu-mark">退</span><span><strong>退款售后</strong><small>处理顾客退款申请</small></span></button>
+        <button data-view="customers"><span class="menu-mark">客</span><span><strong>客户管理</strong><small>顾客概况和企业审核</small></span></button>
+        <button data-view="delivery"><span class="menu-mark">配</span><span><strong>配送设置</strong><small>配送费、区域和时段</small></span></button>
+        <button data-view="marketing"><span class="menu-mark">营</span><span><strong>营销活动</strong><small>只管理现有拼团活动</small></span></button>
+        <button data-view="settings"><span class="menu-mark">设</span><span><strong>系统设置</strong><small>密码、帮助和管理入口</small></span></button>
+      </nav>
+      <div class="side-foot"><span>当前按单仓配送运行</span><a href="index.html?mode=advanced">管理员高级设置</a></div>
+    </aside>
+    <div class="content-shell">
+      <header class="page-head">
+        <div><p class="page-kicker" id="pageKicker">日常经营</p><h1 id="pageTitle">今日待办</h1><p id="pageDescription">先处理需要马上完成的事情。</p></div>
+        <span class="page-ready" id="pageReady">数据已更新</span>
+      </header>
+      <main class="wrap" id="mainContent">
       <p class="notice" id="notice" aria-live="polite"></p>
 
       <section class="view is-active" data-view="dashboard">
+        <div class="dashboard-intro"><div><h2 id="dashboardGreeting">今天先做这些</h2><p>数字卡片可以直接打开对应的处理页面。</p></div><div class="today-summary" id="todaySummary"></div></div>
         <div class="stat-grid" id="statGrid"></div>
-        <p class="hint" style="margin-top:14px">点上面的卡片可以直接跳到对应页面处理。</p>
+        <div class="quick-block"><h3>常用操作</h3><div class="quick-actions"><button class="act green" data-quick="new-product">新增商品</button><button class="act" data-quick="inventory">商品入库</button><button class="act plain" data-quick="all-orders">查看全部订单</button></div></div>
       </section>
 
       <section class="view" data-view="orders">
-        <div class="chips" id="orderChips"></div>
+        <div class="toolbar"><input type="search" id="orderSearch" placeholder="输入订单号筛选"><select id="orderPaymentFilter"><option value="all">全部支付状态</option><option value="paid">已支付</option><option value="pending">待支付</option><option value="not_required">无需支付</option></select><select id="orderFulfillmentFilter"><option value="all">全部履约方式</option><option value="delivery">冷链配送</option><option value="pickup">到店自提</option></select><button class="act plain" id="exportOrdersBtn">导出当前列表</button><button class="act" id="printPickingBtn">生成拣货单</button></div>
+        <div class="chips" id="orderChips"></div><div class="toolbar"><select id="orderBatchStatus"><option value="picking">批量开始拣货</option><option value="shipping">批量标记发货</option><option value="delivered">批量确认送达</option><option value="completed">批量完成</option><option value="cancelled">批量取消</option></select><button class="act danger" id="orderBatchSubmit">处理选中订单</button><span class="hint" id="orderSelectionCount">未选择订单</span></div>
         <div class="card-list" id="orderList"></div>
+        <div class="list-pager" id="orderPager" aria-label="订单列表翻页"></div>
       </section>
 
       <section class="view" data-view="products">
@@ -256,8 +379,11 @@
           <button class="refresh" id="productRefresh">刷新</button>
           <button class="act green" id="newProductBtn">+ 新增商品</button>
         </div>
-        <p class="hint" style="margin:-6px 0 12px">点「修改」进入编辑页。修改会写入小程序与网页端共用的后端；商品是否可见还取决于上下架状态和面向客户。</p>
+        <p class="hint" style="margin:-6px 0 12px">点「修改」进入编辑页。保存后，小程序和网页商城会读取同一份商品资料；商品是否可见还取决于上下架状态和面向客户。</p>
+        <div class="form-panel batch-panel"><div class="panel-title"><div><h3>批量商品与价格</h3><p class="hint">先粘贴商品或价格数据并校验，提交后逐条显示成功与失败；不会只在页面本地改值。</p></div></div><div class="form-two"><label>批量类型<select id="batchCatalogType"><option value="products">商品资料</option><option value="prices">价格规则</option></select></label><label>操作<button class="act" type="button" id="batchCatalogValidate">校验内容</button></label></div><label>JSON 数组<textarea id="batchCatalogInput" rows="5" placeholder='[{"id":"...","name":"..."}]'></textarea></label><div class="actions"><button class="act green" id="batchCatalogSubmit">确认批量提交</button></div><div class="compact-list" id="batchCatalogResult"></div></div>
         <div class="card-list" id="productList"></div>
+        <div class="list-pager" id="productPager" aria-label="商品列表翻页"></div>
+        <div class="form-panel"><div class="panel-title"><div><h3>组合套餐</h3><p class="hint">AI 或临时套餐只能保存草稿，正式启用前必须人工复核。</p></div><button class="act green" id="newBundleBtn">新建套餐</button></div><div class="compact-list" id="bundleList"></div></div>
       </section>
 
       <section class="view" data-view="editor">
@@ -265,32 +391,109 @@
         <div class="editor-layout">
           <aside class="pright" id="editorPane">
             <div class="pane-head" id="livePaneHead"><span class="dot"></span>顾客视角模拟<span class="sync" id="liveSync"></span><button class="act plain mini" id="liveRefreshBtn">刷新数据</button></div>
-            <div class="vchips" id="edViewerChips"><span class="vlabel">视角</span><button data-live-viewer="c" class="is-active">C 端（个人顾客）</button><button data-live-viewer="b">B 端（企业采购）</button></div>
+            <div class="vchips" id="edViewerChips"><span class="vlabel">查看身份</span><button data-live-viewer="c" class="is-active">个人顾客</button><button data-live-viewer="b">企业采购客户</button></div>
             <div class="pv-banner" id="edBanner" style="background:#eef1f5;color:var(--muted)">正在整理后台最新数据…</div>
             <div class="phone">
               <div class="ptop">梦食鲜 · 冻品商城</div>
               <div class="pchips" id="edChips"></div>
               <div class="pbody"><div class="pgrid" id="edGrid"></div></div>
             </div>
-            <p class="pv-note">这里用后台最新数据按服务端相同的 B/C 可见性和价格优先级进行模拟。保存成功表示数据已写入；最终展示仍以体验版中对应身份的真机结果为准。编辑页每 30 秒刷新一次数据。</p>
+            <p class="pv-note">这里按个人顾客或企业采购客户的身份模拟商品效果。保存成功表示资料已经更新；最终效果仍以手机体验版为准。编辑页每 30 秒刷新一次。</p>
           </aside>
           <div id="editorForm"></div>
         </div>
       </section>
 
       <section class="view" data-view="refunds">
-        <div class="toolbar"><button class="refresh" id="refundRefresh">刷新</button></div>
+        <div class="toolbar"><div class="chips" id="refundChips"><button class="is-active" data-refund-filter="all">全部</button><button data-refund-filter="todo">待审核</button><button data-refund-filter="processing">处理中</button><button data-refund-filter="manual">人工退款待办</button><button data-refund-filter="done">已结束</button></div><button class="refresh" id="refundRefresh">刷新</button></div>
         <div class="card-list" id="refundList"></div>
+        <div class="form-panel"><div class="panel-title"><div><h3>电子发票处理</h3><p class="hint">未配置真实开票服务商时只能登记待人工处理或驳回。</p></div></div><div class="toolbar"><select id="invoiceStatusFilter"><option value="">全部状态</option><option value="requested">待处理</option><option value="pending_manual">人工处理中</option><option value="issued">已开票</option><option value="rejected">已驳回</option></select><input id="invoiceOrderFilter" placeholder="订单 ID"><button class="act" id="invoiceFilterBtn">筛选发票</button></div><div class="compact-list" id="invoiceAdminList"></div></div>
       </section>
 
       <section class="view" data-view="inventory">
         <div class="toolbar">
           <input type="search" id="inventorySearch" placeholder="输入商品名搜索…">
+          <select id="inventoryWarehouseFilter"><option value="all">全部仓库</option></select>
           <button class="refresh" id="inventoryRefresh">刷新</button>
         </div>
         <div class="card-list" id="inventoryList"></div>
+        <div class="list-pager" id="inventoryPager" aria-label="库存列表翻页"></div>
+        <div class="form-panel"><div class="panel-title"><div><h3>库存流水</h3><p class="hint">按仓库、商品规格、原因和时间筛选，只展示已落账记录。</p></div><button class="refresh" id="inventoryLedgerRefresh">刷新流水</button></div><div class="toolbar"><input id="ledgerSkuFilter" placeholder="商品规格 ID"><input id="ledgerReasonFilter" placeholder="变动原因"><input id="ledgerFrom" type="date"><input id="ledgerTo" type="date"></div><div class="compact-list" id="inventoryLedgerList"></div></div>
       </section>
-    </main>
+
+      <section class="view" data-view="customers">
+        <div class="section-intro"><div><h2>客户管理</h2><p>查看顾客概况，优先处理企业采购申请。</p></div><button class="refresh" id="customerRefresh">刷新</button></div>
+        <div class="chips" id="customerModeChips"><button class="is-active" data-customer-mode="applications">企业采购申请</button><button data-customer-mode="overview">顾客概况</button><button data-customer-mode="webaccounts">网页账号</button><button data-customer-mode="finance">企业账期与对账</button><button data-customer-mode="inquiries">询价报价</button><button data-customer-mode="membership">积分会员与评价</button></div>
+        <div id="customerApplicationsPane">
+          <div class="chips" id="customerChips"></div>
+          <div class="card-list" id="customerList"></div>
+        </div>
+        <div id="customerOverviewPane" style="display:none">
+          <div class="summary-grid" id="customerSummary"></div>
+          <div class="card-list" id="userList"></div>
+        </div>
+        <div id="customerWebAccountPane" style="display:none"><div class="panel-title"><div><h3>网页登录账号</h3><p class="hint">网页账号必须绑定既有用户。密码仅在本次操作中使用，页面不会保存或再次显示。</p></div><button class="act green" id="newWebAccountBtn">开通网页账号</button></div><div class="card-list" id="webAccountList"></div></div>
+        <div id="customerFinancePane" style="display:none"><div class="panel-title"><div><h3>企业账期账户</h3><p class="hint">额度、占用、应收及退款调整均以系统账务记录为准。</p></div><button class="act green" id="newCreditAccountBtn">配置额度</button></div><div class="toolbar"><input id="financeOrganizationFilter" placeholder="企业组织 ID"><select id="statementStatusFilter"><option value="">全部对账状态</option><option value="open">未结清</option><option value="partial">部分结清</option><option value="settled">已结清</option></select><button class="act" id="financeFilterBtn">筛选账务</button></div><div class="card-list" id="creditAccountList"></div><div class="settings-grid"><div class="form-panel"><h3>应收流水</h3><div class="compact-list" id="receivableList"></div></div><div class="form-panel"><h3>对账单</h3><div class="compact-list" id="statementList"></div></div></div></div>
+        <div id="customerInquiryPane" style="display:none"><div class="panel-title"><div><h3>企业询价</h3><p class="hint">临时或 AI 报价只保存草稿，正式发布前必须人工复核。</p></div></div><div class="card-list" id="adminInquiryList"></div></div>
+        <div id="customerMembershipPane" style="display:none"><div class="settings-grid"><div class="form-panel"><div class="panel-title"><div><h3>会员等级</h3><p class="hint">AI 或临时等级只能保存草稿。</p></div><button class="act green" id="newMembershipLevelBtn">新增等级</button></div><div class="compact-list" id="membershipLevelList"></div></div><div class="form-panel"><div class="panel-title"><div><h3>积分规则</h3><p class="hint">规则先保存草稿，正式启用前人工复核。</p></div><button class="act green" id="newPointsRuleBtn">新增规则</button></div><div class="compact-list" id="pointsRuleList"></div></div><div class="form-panel"><div class="panel-title"><div><h3>积分账户与流水</h3><p class="hint">按用户查询已入账积分。</p></div><button class="act" id="adjustPointsBtn">调整积分</button></div><div class="toolbar"><input id="pointsUserFilter" placeholder="用户 ID"><button class="act" id="pointsFilterBtn">查询</button></div><div class="compact-list" id="pointsAccountList"></div><div class="compact-list" id="pointsLedgerList"></div></div><div class="form-panel"><div class="panel-title"><div><h3>评价审核</h3><p class="hint">按状态读取评价。</p></div></div><div class="toolbar"><select id="reviewStatusFilter"><option value="">全部状态</option><option value="pending">待审核</option><option value="approved">已通过</option><option value="rejected">已驳回</option></select><button class="act" id="reviewFilterBtn">筛选评价</button></div><div class="compact-list" id="reviewAdminList"></div></div></div></div>
+      </section>
+
+      <section class="view" data-view="delivery">
+        <div class="section-intro"><div><h2>配送设置</h2><p>统一管理配送区域、配送费、配送时段和顾客自提点。</p></div><button class="refresh" id="deliveryRefresh">刷新</button></div>
+        <div class="summary-grid" id="deliverySummary"></div>
+        <div class="settings-grid">
+          <form class="form-panel" id="deliveryFeeForm">
+            <h3>配送费</h3>
+            <p class="hint">选择一个配送区域，金额直接填写“元”。</p>
+            <label>配送区域<select name="deliveryAreaId" id="deliveryAreaSelect" required></select></label>
+            <label>基础配送费（元）<input name="baseFee" type="number" min="0" step="0.01" required></label>
+            <label>满多少免配送费（元）<input name="freeThreshold" type="number" min="0" step="0.01" required></label>
+            <button class="act" type="submit">保存配送费</button>
+          </form>
+          <div class="form-panel">
+            <div class="panel-title"><div><h3>配送时段</h3><p class="hint">顾客结算时只能选择这里启用的时段。</p></div><button class="act green" id="newDeliverySlotBtn">新增时段</button></div>
+            <div class="compact-list" id="deliverySlotList"></div>
+          </div>
+          <div class="form-panel">
+            <div class="panel-title"><div><h3>自提点</h3><p class="hint">维护名称、地址、所属仓库和营业时间。</p></div><button class="act green" id="newPickupSiteBtn">新增自提点</button></div>
+            <div class="compact-list" id="pickupSiteList"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="marketing">
+        <div class="section-intro"><div><h2>营销活动</h2><p>管理拼团实例、失败团退款待办和优惠券。</p></div><button class="act green" id="newCampaignBtn">新建拼团</button></div>
+        <div class="marketing-note">活动启用后，只有符合顾客身份、商品已上架且价格有效时，才会在小程序展示。</div>
+        <div class="card-list" id="campaignList"></div>
+        <div class="settings-grid"><div class="form-panel"><h3>拼团实例</h3><div class="compact-list" id="groupInstanceList"></div><div class="compact-list" id="groupMemberList"></div></div><div class="form-panel"><h3>失败团退款待办</h3><div class="compact-list" id="groupRefundTaskList"></div></div><div class="form-panel"><div class="panel-title"><div><h3>优惠券模板与领取核销</h3><p class="hint">AI/临时券只能保存草稿；领取与核销明细只读。</p></div><button class="act green" id="newCouponTemplateBtn">新建券</button></div><div class="compact-list" id="couponTemplateList"></div><div class="toolbar"><input id="couponGrantTemplateFilter" placeholder="模板 ID"><select id="couponGrantStatusFilter"><option value="">全部券状态</option><option value="available">可用</option><option value="reserved">已占用</option><option value="used">已核销</option><option value="expired">已过期</option></select><button class="act" id="couponGrantFilterBtn">查询明细</button></div><div class="compact-list" id="couponGrantList"></div></div></div>
+      </section>
+
+      <section class="view" data-view="settings">
+        <div class="section-intro"><div><h2>系统设置</h2><p>普通员工只处理自己的密码；低频管理能力放在单独入口。</p></div></div>
+        <div class="settings-grid">
+          <form class="form-panel" id="simplePasswordForm">
+            <h3>修改我的密码</h3>
+            <p class="hint">修改后所有已登录设备都会退出，需要使用新密码重新登录。</p>
+            <label>当前密码<input name="currentPassword" type="password" autocomplete="current-password" minlength="12" required></label>
+            <label>新密码<input name="newPassword" type="password" autocomplete="new-password" minlength="12" required placeholder="至少12位"></label>
+            <label>再次输入新密码<input name="confirmPassword" type="password" autocomplete="new-password" minlength="12" required></label>
+            <label class="check-line"><input name="showPassword" type="checkbox">显示输入的密码</label>
+            <button class="act" type="submit">保存新密码</button>
+          </form>
+          <div class="form-panel help-panel">
+            <h3>使用帮助</h3>
+            <ol><li>先看“今日待办”。</li><li>按页面上的蓝色主按钮完成下一步。</li><li>红色按钮会改变重要状态，点击后还会再次确认。</li><li>不确定时先不要保存，联系管理员处理。</li></ol>
+            <a class="admin-link" href="index.html?mode=advanced">进入管理员高级设置</a>
+            <p class="hint">分类、首页内容、账号权限和操作记录放在高级设置中，普通员工不需要进入。</p>
+          </div>
+          <div class="form-panel"><h3>储值测试记录</h3><p class="hint">只读展示账户和流水；真实充值保持关闭，后台不能手工增加余额。</p><div class="toolbar"><input id="storedValueUserFilter" placeholder="用户 ID"><button class="act" id="storedValueFilterBtn">查询流水</button></div><div class="compact-list" id="storedValueAdminList"></div><div class="compact-list" id="storedValueLedgerList"></div></div>
+          <div class="form-panel"><div class="panel-title"><div><h3>角色与权限</h3><p class="hint">只展示当前管理员可读取的角色和权限；修改权限需进入高级设置并再次确认。</p></div></div><div class="compact-list" id="rolePermissionList"></div></div>
+          <div class="form-panel"><div class="panel-title"><div><h3>操作记录</h3><p class="hint">重要写操作、敏感读取和回退都会留下记录。</p></div><button class="refresh" id="auditRefresh">刷新记录</button></div><div class="compact-list" id="auditLogList"></div></div>
+          <div class="form-panel"><div class="panel-title"><div><h3>配置版本与回退</h3><p class="hint">仅对已保留版本的配置提供回退；回退会生成新版本，不会覆盖历史。</p></div></div><div class="form-two"><label>配置类型<select id="versionEntityType"><option value="product">商品</option><option value="price">价格</option><option value="bundle">套餐</option><option value="couponTemplate">优惠券</option><option value="membershipLevel">会员等级</option><option value="pointsRule">积分规则</option><option value="groupCampaign">拼团活动</option><option value="media">媒体</option><option value="banner">轮播图</option><option value="homeSection">首页模块</option></select></label><label>配置 ID<input id="versionEntityId" maxlength="80"></label></div><button class="act" id="versionLoadBtn">查看版本</button><div class="compact-list" id="configVersionList"></div></div>
+        </div>
+      </section>
+      </main>
+    </div>
   </div>
 
   <div id="overlay"><div class="modal" id="modalBody"></div></div>
@@ -298,7 +501,8 @@
   <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.9.2/cloudbase.full.js"></script>
   <script src="config.js"></script>
   <script src="api-client.js?v=20260911l"></script>
+  <script src="session-policy.js?v=20260912a"></script>
   <script src="paging.js?v=20260911a"></script>
-  <script src="simple.js?v=20260911q"></script>
+  <script src="simple.js?v=20260912c"></script>
 </body>
 </html>

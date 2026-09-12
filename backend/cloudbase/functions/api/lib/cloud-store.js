@@ -3,6 +3,12 @@ function normalizePage(value, fallback) {
   return Number.isInteger(number) && number > 0 ? number : fallback;
 }
 
+function isMissingCollectionError(error) {
+  const code = Number(error && (error.errCode !== undefined ? error.errCode : error.code));
+  const message = String(error && (error.errMsg || error.message) || '');
+  return code === -502005 || /database collection not exists|Db or Table not exist/i.test(message);
+}
+
 function createDocumentStore(db) {
   async function getById(collection, id) {
     if (!id) return null;
@@ -52,11 +58,21 @@ function createCloudStore(db) {
     let query = db.collection(collection);
     if (options.where && Object.keys(options.where).length) query = query.where(options.where);
     (options.orderBy || []).forEach(({ field, direction }) => { query = query.orderBy(field, direction === 'desc' ? 'desc' : 'asc'); });
-    const [result, counted] = await Promise.all([
-      query.skip((page - 1) * pageSize).limit(pageSize).get(),
-      query.count()
-    ]);
-    return { rows: result.data || [], total: counted.total || 0, page, pageSize };
+    try {
+      const [result, counted] = await Promise.all([
+        query.skip((page - 1) * pageSize).limit(pageSize).get(),
+        query.count()
+      ]);
+      return { rows: result.data || [], total: counted.total || 0, page, pageSize };
+    } catch (error) {
+      // Newly enabled optional modules can legitimately have no collection yet.
+      // Callers must opt in explicitly so core catalog/order schema drift is not
+      // hidden as a false empty result.
+      if (options.allowMissingCollection === true && isMissingCollectionError(error)) {
+        return { rows: [], total: 0, page, pageSize };
+      }
+      throw error;
+    }
   }
 
   async function findOne(collection, where, options = {}) {

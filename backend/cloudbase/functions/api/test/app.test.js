@@ -173,7 +173,9 @@ async function run() {
 
   const missingCategoryMedia = await call(app, 'admin.categories.upsert', { adminToken, name: '不存在图片的分类', imageMediaId: 'missing-media', status: 'enabled', sort: 3 });
   assert.equal(missingCategoryMedia.error.code, 'MEDIA_NOT_FOUND', '分类不得引用不存在的素材');
-  const managedMedia = await call(app, 'admin.media.upsert', { adminToken, name: '分类临时图片', assetKey: 'category-test', type: 'image', source: 'ai_generated', temporary: true, checksum: 'checksum-v1', fileId: 'cloud://test/category-v1.jpg', mimeType: 'image/jpeg', sizeBytes: 1024 });
+  const aiMediaRejected = await call(app, 'admin.media.upsert', { adminToken, name: 'AI 草案', type: 'image', source: 'ai_generated', temporary: true, enabled: true, fileId: 'cloud://test/ai-draft.jpg', mimeType: 'image/jpeg', sizeBytes: 1024 });
+  assert.equal(aiMediaRejected.error.code, 'TEMPORARY_CANNOT_ACTIVATE', 'AI 或临时素材不得直接启用');
+  const managedMedia = await call(app, 'admin.media.upsert', { adminToken, name: '分类正式图片', assetKey: 'category-test', type: 'image', source: 'client', temporary: false, enabled: true, checksum: 'checksum-v1', fileId: 'cloud://test/category-v1.jpg', mimeType: 'image/jpeg', sizeBytes: 1024 });
   assert.equal(managedMedia.ok, true);
   assert.equal(managedMedia.data.assetKey, 'category-test');
   assert.equal(managedMedia.data.checksum, 'checksum-v1');
@@ -185,13 +187,13 @@ async function run() {
   assert.equal(uploadedMedia.contentBase64, Buffer.from('text-img').toString('base64'));
   const oversizeUpload = await call(app, 'admin.media.upload', { adminToken, type: 'image', fileName: 'too-large.png', mimeType: 'image/png', sizeBytes: 4 * 1024 * 1024 + 1, contentBase64: Buffer.from('x').toString('base64') });
   assert.equal(oversizeUpload.error.code, 'MEDIA_SIZE_INVALID', '后台上传必须阻止超过 4 MB 的直传文件');
-  const webOnlyMedia = await call(app, 'admin.media.upsert', { adminToken, name: '网页专用素材', type: 'image', source: 'demo', temporary: true, targetPlatforms: ['web'], fileId: 'cloud://test/web-only.jpg', mimeType: 'image/jpeg', sizeBytes: 1024 });
+  const webOnlyMedia = await call(app, 'admin.media.upsert', { adminToken, name: '网页专用素材', type: 'image', source: 'client', temporary: false, enabled: true, targetPlatforms: ['web'], fileId: 'cloud://test/web-only.jpg', mimeType: 'image/jpeg', sizeBytes: 1024 });
   assert.equal(webOnlyMedia.ok, true);
   const miniappMediaResolve = await call(app, 'content.media.resolve', { ids: [webOnlyMedia.data._id], platform: 'miniapp' });
   assert.equal(miniappMediaResolve.data.rows.length, 0, '小程序不得解析网页专用素材');
   const webMediaResolve = await call(app, 'content.media.resolve', { ids: [webOnlyMedia.data._id], platform: 'web' });
   assert.equal(webMediaResolve.data.rows[0]._id, webOnlyMedia.data._id, '网页应解析网页专用素材');
-  const futureMedia = await call(app, 'admin.media.upsert', { adminToken, name: '未到期素材', type: 'image', source: 'demo', temporary: true, startAt: '2026-09-08T13:00:00.000Z', fileId: 'cloud://test/future.jpg', mimeType: 'image/jpeg', sizeBytes: 1024 });
+  const futureMedia = await call(app, 'admin.media.upsert', { adminToken, name: '未到期素材', type: 'image', source: 'client', temporary: false, enabled: true, startAt: '2026-09-08T13:00:00.000Z', fileId: 'cloud://test/future.jpg', mimeType: 'image/jpeg', sizeBytes: 1024 });
   assert.equal(futureMedia.ok, true);
   const futureMediaResolve = await call(app, 'content.media.resolve', { ids: [futureMedia.data._id], platform: 'miniapp' });
   assert.equal(futureMediaResolve.data.rows.length, 0, '未到开始时间的素材不得公开解析');
@@ -208,7 +210,7 @@ async function run() {
   const overwriteMedia = await call(app, 'admin.media.upsert', { adminToken, id: managedMedia.data._id, name: '错误覆盖', type: 'image', source: 'ai_generated', temporary: true, fileId: 'cloud://test/category-overwrite.jpg', mimeType: 'image/jpeg', sizeBytes: 1024 });
   assert.equal(overwriteMedia.error.code, 'MEDIA_VERSION_REQUIRED', '已有素材不得直接覆盖云端文件');
   const managedProduct = await call(app, 'admin.products.upsert', { adminToken, name: '测试商品', categoryId: managedCategory.data._id, frozenTemperature: '-18℃' });
-  const managedVideo = await call(app, 'admin.media.upsert', { adminToken, name: '商品详情临时视频', assetKey: 'product-video-test', type: 'video', source: 'ai_generated', temporary: true, fileId: 'cloud://test/product-video.mp4', mimeType: 'video/mp4', sizeBytes: 2048 });
+  const managedVideo = await call(app, 'admin.media.upsert', { adminToken, name: '商品详情正式视频', assetKey: 'product-video-test', type: 'video', source: 'client', temporary: false, enabled: true, fileId: 'cloud://test/product-video.mp4', mimeType: 'video/mp4', sizeBytes: 2048 });
   assert.equal(managedVideo.ok, true);
   const productMediaAssociation = await call(app, 'admin.productMedia.upsert', { adminToken, productId: managedProduct.data._id, mediaAssetId: managedVideo.data._id, mediaType: 'video', role: 'detail', sort: 0, enabled: true });
   assert.equal(productMediaAssociation.ok, true, '管理员应能把已登记视频关联到商品详情');
@@ -251,14 +253,30 @@ async function run() {
   assert.equal(inventory.ok, true);
   const area = await call(app, 'admin.deliveryAreas.upsert', { adminToken, name: '测试配送区', regionCodes: ['440300'], warehouseIds: [warehouse.data._id], status: 'active' });
   assert.equal(area.ok, true);
+  const pickupSite = await call(app, 'admin.pickupSites.upsert', { adminToken, name: '测试自提点', address: '测试路 8 号冷库门店', regionCode: '440300', warehouseId: warehouse.data._id, openingHours: '09:00-18:00', status: 'active', sort: 2, phone: '不得保存或公开' });
+  assert.equal(pickupSite.ok, true);
+  assert.deepEqual(Object.keys(pickupSite.data).sort(), ['_id', 'address', 'createdAt', 'name', 'openingHours', 'regionCode', 'sort', 'status', 'updatedAt', 'warehouseId'].sort(), '自提点数据模型只能保存统一契约字段');
+  const disabledPickupSite = await call(app, 'admin.pickupSites.upsert', { adminToken, name: '停用自提点', address: '测试路 9 号', regionCode: '440300', warehouseId: warehouse.data._id, openingHours: '', status: 'disabled', sort: 3 });
+  assert.equal(disabledPickupSite.ok, true);
+  const pickupSiteList = await call(app, 'admin.pickupSites.list', { adminToken });
+  assert.equal(pickupSiteList.data.rows.length, 2, '具备 delivery.read 权限的管理员应能列出全部自提点');
+  assert.equal((await call(app, 'admin.pickupSites.list', { adminToken: newPasswordLogin.data.token })).error.code, 'ADMIN_FORBIDDEN', '缺少 delivery.read 的管理员不得读取自提点');
+  assert.equal((await call(app, 'admin.pickupSites.upsert', { adminToken: newPasswordLogin.data.token, name: '越权自提点', address: '无', regionCode: '440300', warehouseId: warehouse.data._id })).error.code, 'ADMIN_FORBIDDEN', '缺少 delivery.write 的管理员不得修改自提点');
+  const inactiveWarehouse = await call(app, 'admin.warehouses.upsert', { adminToken, code: 'WH-OFF', name: '停用仓', status: 'disabled' });
+  assert.equal((await call(app, 'admin.pickupSites.upsert', { adminToken, name: '不可启用自提点', address: '测试路 10 号', regionCode: '440300', warehouseId: inactiveWarehouse.data._id, status: 'active' })).error.code, 'WAREHOUSE_NOT_AVAILABLE', '启用自提点必须关联启用仓库');
+  const retainedDisabledSite = await call(app, 'admin.pickupSites.upsert', { adminToken, name: '历史停用自提点', address: '测试路 11 号', regionCode: '440300', warehouseId: 'removed-warehouse', status: 'disabled' });
+  assert.equal(retainedDisabledSite.ok, true, '停用记录可以保留已经失效的历史仓库引用');
+  await store.create('pickup_sites', { _id: 'orphan-active-pickup', name: '脏数据自提点', address: '不应公开', regionCode: '440300', warehouseId: inactiveWarehouse.data._id, status: 'active', sort: 1 });
   const deliveryOptions = await call(app, 'delivery.options');
   assert.equal(deliveryOptions.ok, true);
   assert.equal(deliveryOptions.data.warehouses[0]._id, warehouse.data._id, '公开配送选项必须返回启用仓库事实');
+  assert.deepEqual(deliveryOptions.data.pickupSites.map((item) => item._id), [pickupSite.data._id], '公开配送选项只返回启用自提点');
+  assert.equal(Object.hasOwn(deliveryOptions.data.pickupSites[0], 'phone'), false, '公开自提点不得返回敏感电话字段');
   const freight = await call(app, 'admin.freightRules.upsert', { adminToken, name: '测试运费', deliveryAreaId: area.data._id, warehouseId: warehouse.data._id, baseFeeCent: 800, freeThresholdCent: 10000, status: 'active' });
   assert.equal(freight.ok, true, JSON.stringify(freight));
   const deliverySlot = await call(app, 'admin.deliverySlots.upsert', { adminToken, name: '上午配送', deliveryAreaId: area.data._id, warehouseId: warehouse.data._id, startTime: '09:00', endTime: '12:00', status: 'active' });
   assert.equal(deliverySlot.ok, true);
-  const price = await call(app, 'admin.prices.upsert', { adminToken, skuId: 'sku-1', scopeType: 'public', amountCent: 2500, status: 'active', source: 'ai_generated', temporary: true, demoNote: '演示价格，待甲方确认后替换' });
+  const price = await call(app, 'admin.prices.upsert', { adminToken, skuId: 'sku-1', scopeType: 'public', amountCent: 2500, status: 'active', source: 'client', temporary: false });
   assert.equal(price.ok, true);
 
   // 分层上架必须是服务端交易边界，而不只是列表隐藏：C/B 商品各自只能被对应身份查看、询价、加购和结算。
@@ -277,13 +295,119 @@ async function run() {
   const storedAddress = await store.findOne('addresses', { _id: address.data.address._id });
   assert.equal(Object.hasOwn(storedAddress, 'phone'), false, '地址集合不得保存明文手机号');
   assert.ok(storedAddress.phoneCiphertext.startsWith('v1.'), '手机号必须以加密密文保存');
+  const secondAddress = await call(app, 'address.upsert', { name: '测试用户二号地址', phone: '13800138001', regionCode: '440300', detail: '测试路 2 号', isDefault: false });
+  const changedDefault = await call(app, 'address.setDefault', { id: secondAddress.data.address._id });
+  assert.equal(changedDefault.ok, true);
+  assert.equal(changedDefault.data.address.isDefault, true);
+  assert.equal(Object.hasOwn(changedDefault.data.address, 'phone'), false, '设置默认地址不得要求或返回明文手机号');
+  const defaultAddresses = await store.list('addresses', { where: { userId: storedAddress.userId, status: 'active', isDefault: true }, page: 1, pageSize: 100 });
+  assert.deepEqual(defaultAddresses.rows.map((item) => item._id), [secondAddress.data.address._id], '事务设置后同一用户只能保留一个默认地址');
+  await store.create('addresses', { _id: 'foreign-address', userId: 'another-user', name: '他人地址', status: 'active', isDefault: false });
+  assert.equal((await call(app, 'address.setDefault', { id: 'foreign-address' })).error.code, 'ADDRESS_NOT_FOUND', '用户不得把他人的地址设为默认');
+  const deletedDefault = await call(app, 'address.delete', { id: secondAddress.data.address._id });
+  assert.equal(deletedDefault.ok, true);
+  assert.equal(deletedDefault.data.defaultAddress._id, address.data.address._id, '删除默认地址后必须按创建时间和 ID 的稳定顺序选择剩余默认地址');
+  const defaultsAfterDelete = await store.list('addresses', { where: { userId: storedAddress.userId, status: 'active', isDefault: true }, page: 1, pageSize: 100 });
+  assert.deepEqual(defaultsAfterDelete.rows.map((item) => item._id), [address.data.address._id], '删除地址事务结束后仍只能有一个默认地址');
   const quote = await call(app, 'checkout.quote', { addressId: address.data.address._id, warehouseId: warehouse.data._id, deliverySlotId: deliverySlot.data._id, items: [{ skuId: 'sku-1', quantity: 2 }] });
   assert.equal(quote.ok, true);
+  assert.equal(quote.data.quote.fulfillmentType, 'delivery', '旧请求未传履约方式时必须继续默认为配送');
   assert.equal(quote.data.quote.goodsAmountCent, 5000);
   assert.equal(quote.data.quote.freightAmountCent, 800);
   assert.equal(quote.data.quote.deliverySlot.name, '上午配送');
+  const pickupQuote = await call(app, 'checkout.quote', { fulfillmentType: 'pickup', pickupSiteId: pickupSite.data._id, warehouseId: warehouse.data._id, items: [{ skuId: 'sku-1', quantity: 2 }] });
+  assert.equal(pickupQuote.ok, true, JSON.stringify(pickupQuote));
+  assert.equal(pickupQuote.data.quote.fulfillmentType, 'pickup');
+  assert.equal(pickupQuote.data.quote.freightAmountCent, 0, '自提报价运费必须由服务端固定为 0');
+  assert.equal(pickupQuote.data.quote.payableAmountCent, pickupQuote.data.quote.goodsAmountCent, '自提应付金额不得附加配送费');
+  assert.equal(pickupQuote.data.quote.pickupSiteSnapshot.name, '测试自提点');
+  assert.equal(pickupQuote.data.quote.deliverySlot, null, '自提报价不得伪造配送时段');
+  assert.equal((await call(app, 'checkout.quote', { fulfillmentType: 'pickup', warehouseId: warehouse.data._id, items: [{ skuId: 'sku-1', quantity: 1 }] })).error.code, 'PICKUP_SITE_REQUIRED', '自提必须选择有效自提点');
+  assert.equal((await call(app, 'checkout.quote', { fulfillmentType: 'pickup', pickupSiteId: disabledPickupSite.data._id, warehouseId: warehouse.data._id, items: [{ skuId: 'sku-1', quantity: 1 }] })).error.code, 'PICKUP_SITE_NOT_AVAILABLE', '停用自提点不得用于报价');
+  const secondWarehouse = await call(app, 'admin.warehouses.upsert', { adminToken, code: 'WH-2', name: '第二测试仓', status: 'active' });
+  assert.equal((await call(app, 'checkout.quote', { fulfillmentType: 'pickup', pickupSiteId: pickupSite.data._id, warehouseId: secondWarehouse.data._id, items: [{ skuId: 'sku-1', quantity: 1 }] })).error.code, 'PICKUP_SITE_WAREHOUSE_MISMATCH', '自提点必须与所选仓库一致');
+  assert.equal((await call(app, 'checkout.quote', { fulfillmentType: 'pickup', pickupSiteId: pickupSite.data._id, warehouseId: warehouse.data._id, deliverySlotId: deliverySlot.data._id, items: [{ skuId: 'sku-1', quantity: 1 }] })).error.code, 'DELIVERY_SLOT_NOT_AVAILABLE', '自提不得混入配送时段');
+  assert.equal((await call(app, 'checkout.quote', { fulfillmentType: 'courier', warehouseId: warehouse.data._id, items: [{ skuId: 'sku-1', quantity: 1 }] })).error.code, 'VALIDATION_ERROR', '未知履约方式必须被服务端拒绝');
+  const originalRunTransaction = store.runTransaction.bind(store);
+  store.runTransaction = async (work) => {
+    await store.update('delivery_slots', deliverySlot.data._id, { status: 'disabled' });
+    return originalRunTransaction(work);
+  };
+  const staleSlotOrder = await call(app, 'orders.create', { idempotencyKey: 'stale-slot-order', addressId: address.data.address._id, warehouseId: warehouse.data._id, deliverySlotId: deliverySlot.data._id, items: [{ skuId: 'sku-1', quantity: 1 }], paymentMethod: 'demo' });
+  store.runTransaction = originalRunTransaction;
+  assert.equal(staleSlotOrder.error.code, 'DELIVERY_SLOT_NOT_AVAILABLE', '建单事务必须阻止报价后被停用的配送时段');
+  await store.update('delivery_slots', deliverySlot.data._id, { status: 'active' });
+  store.runTransaction = async (work) => {
+    await store.update('prices', price.data._id, { amountCent: 2600, orderMultiple: 3 });
+    return originalRunTransaction(work);
+  };
+  const stalePriceOrder = await call(app, 'orders.create', { idempotencyKey: 'stale-price-order', addressId: address.data.address._id, warehouseId: warehouse.data._id, items: [{ skuId: 'sku-1', quantity: 2 }], paymentMethod: 'demo' });
+  store.runTransaction = originalRunTransaction;
+  assert.equal(stalePriceOrder.error.code, 'QUOTE_CHANGED', '建单事务必须阻止报价后变化的成交价或购买规则');
+  await store.update('prices', price.data._id, { amountCent: 2500, orderMultiple: 0 });
+  const pickupOrder = await call(app, 'orders.create', { idempotencyKey: 'pickup-order-1', fulfillmentType: 'pickup', pickupSiteId: pickupSite.data._id, warehouseId: warehouse.data._id, items: [{ skuId: 'sku-1', quantity: 1 }], paymentMethod: 'demo' });
+  assert.equal(pickupOrder.ok, true, JSON.stringify(pickupOrder));
+  assert.equal(pickupOrder.data.order.fulfillmentType, 'pickup');
+  assert.equal(pickupOrder.data.order.addressSnapshot, null, '自提订单不得伪造顾客收货地址');
+  assert.equal(pickupOrder.data.order.pickupSiteSnapshot.address, '测试路 8 号冷库门店', '自提订单必须保存自提点快照');
+  assert.equal(pickupOrder.data.order.freightSnapshot.amountCent, 0);
+  const storedPickupOrder = await store.findOne('orders', { _id: pickupOrder.data.order._id });
+  assert.equal(storedPickupOrder.fulfillmentContactCiphertext, '', '自提订单不得借用顾客地址联系方式');
+  const pickupContact = await call(app, 'admin.orders.fulfillmentContact', { adminToken, id: pickupOrder.data.order._id, purpose: 'pickup_test' });
+  assert.equal(Object.hasOwn(pickupContact.data, 'recipient'), false, '自提履约信息不得伪装成顾客收货联系人');
+  assert.equal(pickupContact.data.pickupSite.id, pickupSite.data._id);
+  const duplicatePickupOrder = await call(app, 'orders.create', { idempotencyKey: 'pickup-order-1', fulfillmentType: 'pickup', pickupSiteId: pickupSite.data._id, warehouseId: warehouse.data._id, items: [{ skuId: 'sku-1', quantity: 1 }], paymentMethod: 'demo' });
+  assert.equal(duplicatePickupOrder.data.idempotent, true, '自提订单必须兼容既有幂等建单机制');
+  const retryWithoutPaymentAdapter = createApplication({ store, getIdentity: () => ({ OPENID: 'openid-test' }), piiEncryptionKey: 'unit-test-pii-encryption-key', clock: fixedClock });
+  const adapterIndependentRetry = await call(retryWithoutPaymentAdapter, 'orders.create', { idempotencyKey: 'pickup-order-1', paymentMethod: 'wechat' });
+  assert.equal(adapterIndependentRetry.data.idempotent, true, '已成功订单的幂等重试必须在支付适配器和当前履约配置检查前返回');
+  await call(app, 'orders.cancel', { id: pickupOrder.data.order._id });
   const authenticatedPrices = await call(app, 'catalog.prices', { skuIds: ['sku-1'] });
-  assert.deepEqual(authenticatedPrices.data.rows, [{ skuId: 'sku-1', amountCent: 2500, currency: 'CNY', temporary: true, source: 'ai_generated' }], '已登录用户应只通过受控接口获得当前账号可见的临时演示价');
+  assert.deepEqual(authenticatedPrices.data.rows, [{ skuId: 'sku-1', amountCent: 2500, currency: 'CNY', temporary: false, source: 'client' }], '已登录用户应只通过受控接口获得当前账号可见的服务端价格');
+
+  // 数量阶梯价和起订规则必须由服务端在报价/建单时最终判定，旧的单价规则继续兼容。
+  const tieredSku = await call(app, 'admin.skus.upsert', {
+    adminToken, productId: 'product-1', skuCode: 'MSX-TIER-1', specName: '商用整箱', packageUnit: '1箱',
+    minOrderQuantity: 10, orderMultiple: 5, status: 'on_sale'
+  });
+  assert.equal(tieredSku.ok, true);
+  const tieredSkuId = tieredSku.data._id;
+  await call(app, 'admin.inventory.adjust', { adminToken, warehouseId: warehouse.data._id, skuId: tieredSkuId, change: 100, reason: 'tier_test_stock', idempotencyKey: 'tier-test-stock-1' });
+  const tieredPrice = await call(app, 'admin.prices.upsert', {
+    adminToken, skuId: tieredSkuId, scopeType: 'public', channel: 'miniapp', amountCent: 2500,
+    quantityTiers: [{ minQuantity: 10, maxQuantity: 19, amountCent: 2200 }, { minQuantity: 20, amountCent: 2000 }],
+    status: 'active', source: 'client', temporary: false
+  });
+  assert.equal(tieredPrice.ok, true);
+  const tieredCatalog = await call(app, 'catalog.product', { productId: 'product-1' });
+  const publicTieredSku = tieredCatalog.data.skus.find((item) => item._id === tieredSkuId);
+  assert.deepEqual({ minOrderQuantity: publicTieredSku.minOrderQuantity, orderMultiple: publicTieredSku.orderMultiple }, { minOrderQuantity: 10, orderMultiple: 5 }, '商品规格可公开返回不含价格的起订和倍数约束');
+  assert.equal(Object.hasOwn(publicTieredSku, 'amountCent'), false, '未登录商品详情仍不得透出阶梯价金额');
+  const tieredCatalogPrice = await call(app, 'catalog.prices', { skuIds: [tieredSkuId] });
+  assert.deepEqual(tieredCatalogPrice.data.rows[0].quantityTiers, [{ minQuantity: 10, maxQuantity: 19, amountCent: 2200 }, { minQuantity: 20, maxQuantity: null, amountCent: 2000 }]);
+  assert.equal((await call(app, 'checkout.quote', { addressId: address.data.address._id, warehouseId: warehouse.data._id, items: [{ skuId: tieredSkuId, quantity: 5 }] })).error.code, 'MIN_ORDER_QUANTITY_NOT_MET', '低于起订量必须被服务端拒绝');
+  assert.equal((await call(app, 'checkout.quote', { addressId: address.data.address._id, warehouseId: warehouse.data._id, items: [{ skuId: tieredSkuId, quantity: 11 }] })).error.code, 'ORDER_MULTIPLE_NOT_MET', '不符合购买倍数必须被服务端拒绝');
+  const tierQuote = await call(app, 'checkout.quote', { addressId: address.data.address._id, warehouseId: warehouse.data._id, items: [{ skuId: tieredSkuId, quantity: 20 }] });
+  assert.equal(tierQuote.data.quote.items[0].unitPriceCent, 2000, '报价应按合并后数量命中对应阶梯');
+  assert.deepEqual(tierQuote.data.quote.items[0].purchaseRuleSnapshot, { minOrderQuantity: 10, orderMultiple: 5 });
+  const mergedTierQuote = await call(app, 'checkout.quote', { addressId: address.data.address._id, warehouseId: warehouse.data._id, items: [{ skuId: tieredSkuId, quantity: 5 }, { skuId: tieredSkuId, quantity: 5 }] });
+  assert.equal(mergedTierQuote.data.quote.items[0].unitPriceCent, 2200, '重复 SKU 必须先合并数量再校验起订量并选择阶梯');
+  assert.equal((await call(app, 'checkout.quote', { addressId: address.data.address._id, warehouseId: warehouse.data._id, items: [{ skuId: tieredSkuId, quantity: 600 }, { skuId: tieredSkuId, quantity: 600 }] })).error.code, 'VALIDATION_ERROR', '合并数量不得绕过单 SKU 999 上限');
+  const tierOrder = await call(app, 'orders.create', { idempotencyKey: 'tier-order-1', addressId: address.data.address._id, warehouseId: warehouse.data._id, items: [{ skuId: tieredSkuId, quantity: 20 }], paymentMethod: 'demo' });
+  assert.equal(tierOrder.ok, true);
+  assert.equal(tierOrder.data.order.pricingSnapshot.goodsAmountCent, 40000, '建单必须重新执行服务端阶梯价报价');
+  const storedTierOrder = await store.findOne('orders', { _id: tierOrder.data.order._id });
+  assert.deepEqual(storedTierOrder.itemsSnapshot[0].quantityTierSnapshot, { minQuantity: 20, maxQuantity: null, amountCent: 2000 }, '订单必须保存命中的阶梯快照');
+  await call(app, 'orders.cancel', { id: tierOrder.data.order._id });
+  const overlappingTiers = await call(app, 'admin.prices.upsert', {
+    adminToken, skuId: tieredSkuId, scopeType: 'public', amountCent: 2500,
+    quantityTiers: [{ minQuantity: 10, maxQuantity: 20, amountCent: 2200 }, { minQuantity: 20, amountCent: 2000 }], status: 'draft'
+  });
+  assert.equal(overlappingTiers.error.code, 'VALIDATION_ERROR', '后台写入重叠阶梯时必须拒绝');
+  const preservedTiers = await call(app, 'admin.prices.upsert', { adminToken, id: tieredPrice.data._id, skuId: tieredSkuId, scopeType: 'public', channel: 'miniapp', amountCent: 2450, status: 'active' });
+  assert.equal(preservedTiers.data.quantityTiers.length, 2, '旧后台未提交新字段时不得清空已有阶梯');
+  assert.equal(preservedTiers.data.temporary, false, '旧后台未提交来源字段时不得改写已有来源元数据');
+
   const cFirstPage = await call(app, 'catalog.products', { page: 1, pageSize: 1 });
   assert.equal(cFirstPage.data.rows.length, 1, '分层过滤必须先于分页，首条为 B 端商品时 C 端分页也不能出现空洞');
   assert.notEqual(cFirstPage.data.rows[0]._id, 'product-b-only', 'C 端目录不得返回 B 端专享商品');
@@ -341,6 +465,16 @@ async function run() {
   assert.equal((await call(app, 'catalog.product', { productId: 'product-b-only' })).ok, true, 'B 端应能读取 B 端专享商品详情');
   assert.equal((await call(app, 'catalog.product', { productId: 'product-c-only' })).error.code, 'PRODUCT_NOT_FOUND', 'B 端不得读取 C 端专享商品详情');
   assert.deepEqual((await call(app, 'catalog.prices', { skuIds: ['sku-b-only', 'sku-c-only'] })).data.rows.map((row) => row.skuId), ['sku-b-only'], 'B 端只应获得其可见商品的价格');
+  const businessTierPrice = await call(app, 'admin.prices.upsert', {
+    adminToken, skuId: tieredSkuId, scopeType: 'customer_type', scopeId: 'b', channel: 'miniapp', amountCent: 2300,
+    quantityTiers: [{ minQuantity: 20, amountCent: 1900 }], minOrderQuantity: 20, orderMultiple: 10,
+    status: 'active', source: 'client', temporary: false
+  });
+  assert.equal(businessTierPrice.ok, true);
+  assert.equal((await call(app, 'checkout.quote', { addressId: address.data.address._id, warehouseId: warehouse.data._id, items: [{ skuId: tieredSkuId, quantity: 10 }] })).error.code, 'MIN_ORDER_QUANTITY_NOT_MET', '客户类型价格规则应可覆盖 SKU 默认起订量');
+  const businessTierQuote = await call(app, 'checkout.quote', { addressId: address.data.address._id, warehouseId: warehouse.data._id, items: [{ skuId: tieredSkuId, quantity: 20 }] });
+  assert.equal(businessTierQuote.data.quote.items[0].unitPriceCent, 1900, '应先选中 B 端客户类型价格规则，再按数量选阶梯');
+  assert.deepEqual(businessTierQuote.data.quote.items[0].purchaseRuleSnapshot, { minOrderQuantity: 20, orderMultiple: 10 });
   assert.equal((await call(app, 'cart.upsert', { skuId: 'sku-b-only', quantity: 1 })).ok, true, 'B 端应能把 B 端专享商品加入购物车');
   assert.equal((await call(app, 'checkout.quote', { addressId: address.data.address._id, warehouseId: warehouse.data._id, items: [{ skuId: 'sku-b-only', quantity: 1 }] })).ok, true, 'B 端应能为 B 端专享商品取得报价');
   assert.equal((await call(app, 'checkout.quote', { addressId: address.data.address._id, warehouseId: warehouse.data._id, items: [{ skuId: 'sku-c-only', quantity: 1 }] })).error.code, 'PRODUCT_NOT_AVAILABLE', 'B 端不得为 C 端专享商品取得报价');
@@ -417,7 +551,8 @@ async function run() {
   const duplicateRefundRequest = await call(app, 'refunds.request', { orderId: paidOrder.data.order._id, idempotencyKey: 'refund-2', amountCent: paidOrder.data.order.totalAmountCent, reason: '重复申请' });
   assert.equal(duplicateRefundRequest.error.code, 'REFUND_ALREADY_PENDING', '同一订单不能存在多笔处理中的退款申请');
   const refundReview = await call(app, 'admin.refunds.review', { adminToken, id: refundRequest.data.refund._id, decision: 'approved', reviewNote: '测试通过' });
-  assert.equal(refundReview.data.refund.status, 'processing');
+  assert.equal(refundReview.data.refund.status, 'awaiting_manual_refund');
+  assert.equal(refundReview.data.refund.manualRefundRequired, true, '审核通过只能进入待人工退款，不能伪造渠道成功');
   const refundNotify = await call(app, 'refunds.notify', { refundNo: refundRequest.data.refund.refundNo, refundTransactionId: 'wx-refund-001', amountCent: refundRequest.data.refund.amountCent });
   assert.equal(refundNotify.ok, true);
   const refundedOrder = await store.findOne('orders', { _id: paidOrder.data.order._id });

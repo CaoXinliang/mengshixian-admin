@@ -23,7 +23,8 @@
     if (typeof call !== 'function') fail('ADMIN_LIST_CALL_INVALID', '后台列表请求器不可用。');
     const pageSize = Math.min(MAX_PAGE_SIZE, positiveInteger(options.pageSize, DEFAULT_PAGE_SIZE));
     const maxPages = Math.min(MAX_PAGES, positiveInteger(options.maxPages, MAX_PAGES));
-    const first = await call(action, { page: 1, pageSize });
+    const params = options.params && typeof options.params === 'object' ? options.params : {};
+    const first = await call(action, { ...params, page: 1, pageSize });
     const rows = [...assertRows(first)];
     const total = Number(first.total);
 
@@ -37,7 +38,7 @@
     }
 
     for (let page = 2; page <= pages; page += 1) {
-      const next = await call(action, { page, pageSize });
+      const next = await call(action, { ...params, page, pageSize });
       const nextRows = assertRows(next);
       rows.push(...nextRows);
       if (nextRows.length < pageSize) break;
