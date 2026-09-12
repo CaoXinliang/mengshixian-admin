@@ -8,6 +8,7 @@
   const config = global.MENGSHIXIAN_ADMIN_CONFIG || {};
   const $ = (sel) => document.querySelector(sel);
 
+  const SIMPLE_PAGE_SIZE = 10;
   const state = {
     me: null,
     products: [], skus: [], prices: [], categories: [], media: [],
@@ -15,8 +16,43 @@
     urlMap: {}, imagePickId: '',
     orderFilter: 'todo', productKeyword: '', inventoryKeyword: '',
     editor: null, editorMediaRows: [],
-    live: { rows: [], categories: [], activeCategory: '', focusId: '', viewer: 'c', detailId: '', detailSkuId: '', detailQty: 1, detailCache: {}, syncedAt: '' }
+    live: { rows: [], categories: [], activeCategory: '', focusId: '', viewer: 'c', detailId: '', detailSkuId: '', detailQty: 1, detailCache: {}, syncedAt: '' },
+    pageMap: { orders: 1, products: 1, refunds: 1, inventory: 1 }
   };
+  // 分页通用函数
+  function applyPagination(list, pageKey, containerEl, rowHtmlFn) {
+    const total = list.length;
+    const pages = Math.max(1, Math.ceil(total / SIMPLE_PAGE_SIZE));
+    let page = state.pageMap[pageKey] || 1;
+    if (page > pages) page = pages;
+    if (page < 1) page = 1;
+    state.pageMap[pageKey] = page;
+    const start = (page - 1) * SIMPLE_PAGE_SIZE;
+    const sliced = list.slice(start, start + SIMPLE_PAGE_SIZE);
+    containerEl.innerHTML = sliced.map(rowHtmlFn).join('');
+    // 移除旧分页
+    const oldPager = containerEl.nextElementSibling;
+    if (oldPager && oldPager.classList.contains('pager')) oldPager.remove();
+    if (total > SIMPLE_PAGE_SIZE) {
+      containerEl.insertAdjacentHTML('afterend', buildSimplePagerHtml(page, pages, total, pageKey));
+    }
+  }
+  function buildSimplePagerHtml(page, pages, total, pageKey) {
+    const prev = page > 1 ? `<button data-page="${page - 1}" data-pk="${pageKey}">上一页</button>` : `<button disabled>上一页</button>`;
+    const next = page < pages ? `<button data-page="${page + 1}" data-pk="${pageKey}">下一页</button>` : `<button disabled>下一页</button>`;
+    const pagesHtml = [];
+    let winStart = Math.max(1, page - 2);
+    let winEnd = Math.min(pages, winStart + 4);
+    if (winEnd - winStart + 1 < 5) winStart = Math.max(1, winEnd - 4);
+    if (winStart > 1) pagesHtml.push(`<button data-page="1" data-pk="${pageKey}">1</button>`);
+    if (winStart > 2) pagesHtml.push(`<span>…</span>`);
+    for (let p = winStart; p <= winEnd; p++) {
+      pagesHtml.push(p === page ? `<button class="is-active" disabled>${p}</button>` : `<button data-page="${p}" data-pk="${pageKey}">${p}</button>`);
+    }
+    if (winEnd < pages - 1) pagesHtml.push(`<span>…</span>`);
+    if (winEnd < pages) pagesHtml.push(`<button data-page="${pages}" data-pk="${pageKey}">${pages}</button>`);
+    return `<div class="pager"><div class="p-info">共 ${total} 条，第 ${page}/${pages} 页</div><div class="p-btns">${prev}${pagesHtml.join('')}${next}<div class="p-jump"><span>跳至</span><input type="number" min="1" max="${pages}" placeholder="页码" data-pk="${pageKey}"><span>页</span></div></div></div>`;
+  }
 
   const ORDER_STATUS_TEXT = {
     pending_payment: '待支付', pending_confirmation: '待确认', picking: '拣货中',
@@ -218,11 +254,13 @@
       if (state.orderFilter === 'todo') return ORDER_FLOW.includes(o.status);
       return o.status === state.orderFilter;
     });
+    const listEl = $('#orderList');
     if (!rows.length) {
-      $('#orderList').innerHTML = `<div class="empty"><div class="big">🍃</div>这里没有需要处理的订单</div>`;
+      listEl.innerHTML = `<div class="empty"><div class="big">🍃</div>这里没有需要处理的订单</div>`;
+      listEl.nextElementSibling?.classList.contains('pager') && listEl.nextElementSibling.remove();
       return;
     }
-    $('#orderList').innerHTML = rows.map((o) => {
+    applyPagination(rows, 'orders', listEl, (o) => {
       const address = o.addressSnapshot || {};
       const slot = o.deliverySlotSnapshot || {};
       const payText = PAY_TEXT[o.paymentStatus] || o.paymentStatus || '—';
@@ -238,12 +276,13 @@
         收货：${esc(address.name || '—')}　${esc(address.phoneMasked || '')}<br>${esc(address.detail || '')}${slot.name ? `　｜　配送时段：${esc(slot.name)} ${esc(slot.startTime || '')}-${esc(slot.endTime || '')}` : ''}</div>
         <div class="actions">${orderActionButtons(o)}</div>
       </div>`;
-    }).join('');
+    });
   }
   $('#orderChips').addEventListener('click', (event) => {
     const chip = event.target.closest('[data-chip]');
     if (!chip) return;
     state.orderFilter = chip.dataset.chip;
+    state.pageMap.orders = 1;
     renderOrders();
   });
   $('#orderList').addEventListener('click', (event) => {
@@ -465,6 +504,14 @@
     if (editorActive) refreshLive();
   }, 30000);
   document.addEventListener('click', (event) => {
+    // 分页按钮
+    const pagerBtn = event.target.closest('[data-page]');
+    if (pagerBtn) {
+      state.pageMap[pagerBtn.dataset.pk] = Number(pagerBtn.dataset.page);
+      const renderers = { orders: renderOrders, products: renderProducts, refunds: renderRefunds, inventory: renderInventory };
+      (renderers[pagerBtn.dataset.pk] || (() => {}))();
+      return;
+    }
     const viewerChip = event.target.closest('[data-live-viewer]');
     if (viewerChip) {
       state.live.viewer = viewerChip.dataset.liveViewer;
@@ -615,7 +662,13 @@
     const keyword = state.productKeyword.trim();
     const rows = state.products.filter((p) => p.status !== 'archived');
     const matched = !keyword ? rows : rows.filter((p) => `${p.name || ''}${p.categoryName || categoryOf(p.categoryId)}`.includes(keyword));
-    const listHtml = matched.length ? matched.map((p) => {
+    const listEl = $('#productList');
+    if (!matched.length) {
+      listEl.innerHTML = `<div class="empty"><div class="big">📦</div>没有找到商品</div>`;
+      listEl.nextElementSibling?.classList.contains('pager') && listEl.nextElementSibling.remove();
+      return;
+    }
+    applyPagination(matched, 'products', listEl, (p) => {
       const skus = state.skus.filter((s) => s.productId === p._id);
       const statusBadge = p.status === 'on_sale' ? '<span class="badge b-green">上架中</span>'
         : p.status === 'off_sale' ? '<span class="badge b-gray">已下架</span>' : `<span class="badge b-orange">${PRODUCT_STATUS_TEXT[p.status] || esc(p.status)}</span>`;
@@ -643,10 +696,9 @@
           <button class="act plain narrow-only" data-preview-modal="${esc(p._id)}">顾客视角</button>
         </div>
       </div>`;
-    }).join('') : `<div class="empty"><div class="big">📦</div>没有找到商品</div>`;
-    $('#productList').innerHTML = listHtml;
+    });
   }
-  $('#productSearch').addEventListener('input', (event) => { state.productKeyword = event.target.value; renderProducts(); });
+  $('#productSearch').addEventListener('input', (event) => { state.productKeyword = event.target.value; state.pageMap.products = 1; renderProducts(); });
   $('#productRefresh').addEventListener('click', () => guard(async () => { await reloadCore(); renderProducts(); await refreshLive(); }, '已刷新'));
   $('#newProductBtn').addEventListener('click', () => {
     state.editor = { mode: 'new', productId: '' };
@@ -1106,8 +1158,9 @@
   // ---------- 退款 ----------
   function renderRefunds() {
     const rows = state.refunds;
-    if (!rows.length) { $('#refundList').innerHTML = `<div class="empty"><div class="big">🌤️</div>没有退款申请</div>`; return; }
-    $('#refundList').innerHTML = rows.map((r) => {
+    const listEl = $('#refundList');
+    if (!rows.length) { listEl.innerHTML = `<div class="empty"><div class="big">🌤️</div>没有退款申请</div>`; listEl.nextElementSibling?.classList.contains('pager') && listEl.nextElementSibling.remove(); return; }
+    applyPagination(rows, 'refunds', listEl, (r) => {
       const isTodo = r.status === 'requested';
       return `<div class="oc">
         <div class="row1">
@@ -1122,7 +1175,7 @@
           <button class="act danger" data-refund="rejected" data-id="${esc(r._id)}">驳回</button>
         </div>` : ''}
       </div>`;
-    }).join('');
+    });
   }
   $('#refundRefresh').addEventListener('click', () => guard(async () => { await reloadTrade(); renderRefunds(); renderDashboard(); }, '已刷新'));
   $('#refundList').addEventListener('click', (event) => {
@@ -1139,7 +1192,6 @@
 
   // ---------- 库存 ----------
   function renderInventory() {
-    if (!state.inventory.length) { $('#inventoryList').innerHTML = `<div class="empty"><div class="big">🏷️</div>还没有库存记录</div>`; return; }
     const keyword = state.inventoryKeyword.trim();
     const rows = state.inventory.map((inv) => {
       const sku = state.skus.find((s) => s._id === inv.skuId);
@@ -1147,8 +1199,9 @@
       const warehouse = state.warehouses.find((w) => w._id === inv.warehouseId);
       return { inv, sku, product, warehouse };
     }).filter((row) => row.sku && (!keyword || (row.product && row.product.name || '').includes(keyword)));
-    if (!rows.length) { $('#inventoryList').innerHTML = `<div class="empty"><div class="big">📦</div>没有匹配的库存记录</div>`; return; }
-    $('#inventoryList').innerHTML = rows.map(({ inv, sku, product, warehouse }) => `
+    const listEl = $('#inventoryList');
+    if (!rows.length) { listEl.innerHTML = `<div class="empty"><div class="big">${state.inventory.length ? '📦' : '🏷️'}</div>${state.inventory.length ? '没有匹配的库存记录' : '还没有库存记录'}</div>`; listEl.nextElementSibling?.classList.contains('pager') && listEl.nextElementSibling.remove(); return; }
+    applyPagination(rows, 'inventory', listEl, ({ inv, sku, product, warehouse }) => `
       <div class="oc">
         <div class="row1">
           <strong>${esc(product ? product.name : sku.specName)}</strong>
@@ -1161,9 +1214,9 @@
           <button class="act green" data-stock="in" data-sku="${esc(inv.skuId)}" data-wh="${esc(inv.warehouseId)}">入库</button>
           <button class="act danger" data-stock="out" data-sku="${esc(inv.skuId)}" data-wh="${esc(inv.warehouseId)}">出库</button>
         </div>
-      </div>`).join('');
+      </div>`);
   }
-  $('#inventorySearch').addEventListener('input', (event) => { state.inventoryKeyword = event.target.value; renderInventory(); });
+  $('#inventorySearch').addEventListener('input', (event) => { state.inventoryKeyword = event.target.value; state.pageMap.inventory = 1; renderInventory(); });
   $('#inventoryRefresh').addEventListener('click', () => guard(async () => { await reloadCore(); renderInventory(); }, '已刷新'));
   $('#inventoryList').addEventListener('click', (event) => {
     const btn = event.target.closest('[data-stock]');
@@ -1211,6 +1264,19 @@
   }
   $('#overlay').addEventListener('click', (event) => {
     if (event.target === event.currentTarget || event.target.closest('[data-close]')) closeModal();
+  });
+
+  // 分页跳转回车
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    const input = event.target.closest('input[data-pk]');
+    if (!input) return;
+    const page = Number(input.value);
+    const pk = input.dataset.pk;
+    if (!Number.isFinite(page) || page < 1) return;
+    state.pageMap[pk] = page;
+    const renderers = { orders: renderOrders, products: renderProducts, refunds: renderRefunds, inventory: renderInventory };
+    (renderers[pk] || (() => {}))();
   });
 
   boot();
