@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>梦食鲜｜运营管理后台</title>
+  <title>梦食鲜｜订单履约</title>
   <link rel="icon" href="assets/logo.png" type="image/png">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -13,8 +13,8 @@
       <div class="brand"><img src="assets/logo.png" alt="梦食鲜" class="brand-logo"><div><strong>梦食鲜</strong><small>运营管理后台</small></div></div>
       <p class="nav-caption">日常经营</p>
       <nav id="mainNav" aria-label="后台业务模块">
-    <div class="nav-group is-open">
-      <a class="nav-parent is-active" href="index.html"><span class="module-mark">今</span><span><strong>首页</strong><small>待办与经营概况</small></span></a>
+    <div class="nav-group">
+      <a class="nav-parent" href="index.html"><span class="module-mark">今</span><span><strong>首页</strong><small>待办与经营概况</small></span></a>
     </div>
     <div class="nav-group">
       <a class="nav-parent" href="products.html"><span class="module-mark">商</span><span><strong>商品中心</strong><small>商品、分类与价格</small></span><span class="arrow">›</span></a>
@@ -25,10 +25,10 @@
         <a href="pricing.html">价格规则</a>
       </div>
     </div>
-    <div class="nav-group">
-      <a class="nav-parent" href="orders.html"><span class="module-mark">订</span><span><strong>订单中心</strong><small>履约与售后</small></span><span class="arrow">›</span></a>
+    <div class="nav-group is-open">
+      <a class="nav-parent is-active" href="orders.html"><span class="module-mark">订</span><span><strong>订单中心</strong><small>履约与售后</small></span><span class="arrow">›</span></a>
       <div class="nav-children">
-        <a href="orders.html">订单履约</a>
+        <a href="orders.html" class="is-active">订单履约</a>
         <a href="refunds.html">退款售后</a>
       </div>
     </div>
@@ -75,12 +75,9 @@
     <section class="workspace">
       <header class="workspace-head"><div><p class="eyebrow" id="moduleEyebrow"></p><h2 id="panelTitle"></h2></div><div class="workspace-actions"><span class="service-state"><i></i>服务正常</span><div class="admin-user" id="adminUser"></div></div></header>
       <p class="notice" id="globalMessage" aria-live="polite"></p>
-      <section class="panel is-active" data-panel="overview">
-        <div class="overview-intro"><div><p class="eyebrow">今日待办</p><h3>先处理最需要关注的事情</h3><p>点击任务卡片直接进入对应业务页面，不必逐级寻找。</p></div><time id="overviewDate"></time></div>
-        <div class="task-grid" id="taskMetrics"></div>
-        <h3 class="section-title">经营数据</h3>
-        <div class="metric-grid" id="metrics"></div>
-        <article class="card readiness"><div><span class="readiness-icon">安</span></div><div><h3>系统运行边界</h3><p>商品需审核后上架；价格、库存、运费和订单金额均由服务端计算。真实支付与退款渠道未配置前不会被后台操作伪造。</p></div></article>
+      <section class="panel is-active" data-panel="orders">
+        <article class="card"><h3>订单履约</h3><p>支付待确认状态仅允许由已验签的支付回调变更；本页不能手工伪造支付成功。</p></article>
+        <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>订单号</th><th>状态</th><th>金额</th><th>支付</th><th>创建时间</th><th class="col-action">操作</th></tr></thead><tbody id="ordersTable"></tbody></table></div>
       </section>
       <div class="hidden-forms">
         <form class="card form-card" id="categoryForm"><h3>新增或修改分类</h3><input type="hidden" name="id"><label>分类名称<input name="name" required maxlength="30"></label><label>分类图片素材 ID<input name="imageMediaId" placeholder="可稍后在素材库补充"></label><label>排序<input name="sort" type="number" value="0"></label><label>状态<select name="status"><option value="draft">草稿</option><option value="enabled">启用</option><option value="disabled">停用</option></select></label><button class="primary">保存分类</button></form>
@@ -120,7 +117,7 @@
     })();
   </script>
   <script src="paging.js"></script>
-  <script>window.PAGE_NAME = 'overview';</script>
+  <script>window.PAGE_NAME = 'orders';</script>
   <script src="app.js"></script>
 </body>
 </html>
