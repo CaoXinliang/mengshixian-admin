@@ -235,9 +235,9 @@
   function orderActionButtons(order) {
     const buttons = [];
     if (order.status === 'pending_confirmation') buttons.push(`<button class="act" data-order-action="picking" data-id="${esc(order._id)}">接单，开始拣货</button>`);
-    if (order.status === 'picking') buttons.push(`<button class="act green" data-order-action="shipping" data-id="${esc(order._id)}">发货</button>`);
-    if (order.status === 'shipping') buttons.push(`<button class="act green" data-order-action="delivered" data-id="${esc(order._id)}">确认送达</button>`);
-    if (order.status === 'delivered') buttons.push(`<button class="act plain" data-order-action="completed" data-id="${esc(order._id)}">完成订单</button>`);
+    if (order.status === 'picking') buttons.push(`<button class="act green" data-order-action="shipping" data-confirm-text="确认发货？" data-id="${esc(order._id)}">发货</button>`);
+    if (order.status === 'shipping') buttons.push(`<button class="act green" data-order-action="completed" data-confirm-text="确认已完成这张订单？" data-id="${esc(order._id)}">标记完成</button>`);
+    if (order.status === 'completed') buttons.push(`<button class="act plain" data-order-action="shipping" data-confirm-text="确认取消送达，订单回退到配送中？" data-id="${esc(order._id)}">取消送达</button>`);
     if ((order.status === 'pending_confirmation' || order.status === 'picking') && order.paymentStatus !== 'paid') {
       buttons.push(`<button class="act danger" data-order-action="cancelled" data-id="${esc(order._id)}">取消订单</button>`);
     }
@@ -247,7 +247,7 @@
     const filters = [
       { key: 'todo', label: '待处理' }, { key: 'pending_confirmation', label: '待确认' },
       { key: 'picking', label: '拣货中' }, { key: 'shipping', label: '配送中' },
-      { key: 'delivered', label: '已送达' }, { key: 'completed', label: '已完成' }, { key: 'cancelled', label: '已取消' }
+      { key: 'completed', label: '已完成' }, { key: 'cancelled', label: '已取消' }
     ];
     $('#orderChips').innerHTML = filters.map((f) => `<button data-chip="${f.key}" class="${state.orderFilter === f.key ? 'is-active' : ''}">${f.label}</button>`).join('');
     const rows = state.orders.filter((o) => {
@@ -290,7 +290,7 @@
     if (!btn) return;
     const id = btn.dataset.id;
     const next = btn.dataset.orderAction;
-    const confirmText = {
+    const confirmText = btn.dataset.confirmText || {
       picking: '确认接单并开始拣货？',
       shipping: '确认发货？',
       delivered: '确认已送达客户？',

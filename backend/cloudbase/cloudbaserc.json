@@ -1,0 +1,32 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "envId": "cloud1-d8gp843lt5454ada7",
+  "functionRoot": "functions",
+  "functions": [
+    {
+      "name": "api",
+      "timeout": 20,
+      "memorySize": 256,
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "description": "梦食鲜商城统一业务 API",
+      "installDependency": true
+    },
+    {
+      "name": "maintenance",
+      "timeout": 60,
+      "memorySize": 256,
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "description": "梦食鲜库存预占与拼团过期维护任务",
+      "installDependency": true,
+      "triggers": [
+        {
+          "name": "maintenance-every-five-minutes",
+          "type": "timer",
+          "config": "0 */5 * * * * *"
+        }
+      ]
+    }
+  ]
+}

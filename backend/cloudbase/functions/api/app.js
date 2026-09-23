@@ -94,7 +94,7 @@ function cleanAdmin(admin, permissions) {
   };
 }
 
-function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '', piiEncryptionKey = '', paymentPreparer = null, paymentVerifier = null, refundVerifier = null, mediaUrlResolver = null, storageUploader = null, demoMode = false, clock = () => new Date() }) {
+function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '', piiEncryptionKey = '', paymentPreparer = null, paymentVerifier = null, refundVerifier = null, mediaUrlResolver = null, storageUploader = null, demoMode = false, clock = () => new Date(), getPhoneByCode = null }) {
   async function audit(admin, action, targetType, targetId, details = {}) {
     return store.create('audit_logs', {
       actorType: admin ? 'admin' : 'system',
@@ -119,40 +119,85 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     return { admin, permissions };
   }
 
-  async function ensureWechatUser() {
+  async function ensureWechatUser(phoneCode = '') {
     const identity = getIdentity() || {};
     const openid = identity.OPENID || identity.openid || '';
     if (!openid) fail('UNAUTHENTICATED', '未取得微信用户身份。');
     let user = await store.findOne('users', { openid });
+    const timestamp = nowIso(clock);
+    let phone = '';
+    if (phoneCode && typeof getPhoneByCode === 'function') {
+      try { phone = String(await getPhoneByCode(phoneCode) || '').replace(/\s/g, ''); } catch (_) { phone = ''; }
+      if (phone && !/^1\d{10}$/.test(phone)) phone = '';
+    }
     if (!user) {
-      const timestamp = nowIso(clock);
-      user = await store.create('users', { openid, userType: 'c', status: 'active', createdAt: timestamp, updatedAt: timestamp, lastLoginAt: timestamp });
+      const patch = { openid, userType: 'b', status: 'active', createdAt: timestamp, updatedAt: timestamp, lastLoginAt: timestamp };
+      if (phone && piiEncryptionKey && String(piiEncryptionKey).length >= 16) {
+        const masked = maskedPhone(phone);
+        const existingByPhone = await store.findOne('users', { phoneMasked: masked });
+        if (existingByPhone && existingByPhone.openid !== openid) fail('PHONE_ALREADY_REGISTERED', '该手机号已被其他账号使用。');
+        patch.phoneCiphertext = encryptText(phone, piiEncryptionKey);
+        patch.phoneMasked = masked;
+      }
+      user = await store.create('users', patch);
     } else {
-      await store.update('users', user._id, { lastLoginAt: nowIso(clock), updatedAt: nowIso(clock) });
-      user.lastLoginAt = nowIso(clock);
+      const patch = { lastLoginAt: timestamp, updatedAt: timestamp };
+      if (phone && piiEncryptionKey && String(piiEncryptionKey).length >= 16) {
+        const newMasked = maskedPhone(phone);
+        if (!user.phoneMasked || user.phoneMasked !== newMasked) {
+          const existingByPhone = await store.findOne('users', { phoneMasked: newMasked });
+          if (existingByPhone && existingByPhone._id !== user._id) fail('PHONE_ALREADY_REGISTERED', '该手机号已被其他账号使用。');
+          patch.phoneCiphertext = encryptText(phone, piiEncryptionKey);
+          patch.phoneMasked = newMasked;
+        }
+      }
+      await store.update('users', user._id, patch);
+      Object.assign(user, patch);
     }
     return user;
   }
 
+  async function userUploadBusinessMedia(payload) {
+    const user = await ensureWechatUser();
+    if (typeof storageUploader !== 'function') fail('MEDIA_UPLOAD_UNAVAILABLE', '素材上传服务尚未配置。');
+    const kind = string(payload.kind, '素材类型', { max: 40 });
+    if (!['storefront', 'license', 'attachment'].includes(kind)) fail('VALIDATION_ERROR', '素材类型不合法。');
+    const type = string(payload.type, '素材种类', { max: 30 }) || 'image';
+    if (type !== 'image') fail('VALIDATION_ERROR', '仅支持图片素材。');
+    const mimeType = string(payload.mimeType, 'MIME', { max: 40 }) || 'image/jpeg';
+    const fileName = string(payload.fileName, '文件名', { required: true, max: 120 });
+    const sizeBytes = integer(payload.sizeBytes, 0);
+    const contentBase64 = string(payload.contentBase64, '素材内容', { required: true, max: 20 * 1024 * 1024 });
+    if (sizeBytes > 4 * 1024 * 1024) fail('MEDIA_SIZE_INVALID', '素材不能超过 4MB。');
+    const extension = (fileName.match(/\.([^.?#]+)$/) || [])[1] || 'jpg';
+    const safeBaseName = fileName.replace(/[^\w\-\.]/g, '_').slice(0, 60) || 'media';
+    const safeExt = ['jpg', 'jpeg', 'png', 'webp'].includes(extension.toLowerCase()) ? extension.toLowerCase() : 'jpg';
+    const cloudPath = `mengshixian/business-applications/${user._id}/${kind}-${randomId()}-${safeBaseName}.${safeExt}`;
+    const fileId = await storageUploader({ cloudPath, contentBase64 });
+    if (!fileId) fail('MEDIA_UPLOAD_FAILED', '素材上传未返回文件 ID。');
+    return { mediaId: fileId };
+  }
+
   async function applyBusiness(payload) {
     const user = await ensureWechatUser();
-    if (user.userType === 'b') fail('BUSINESS_APPLICATION_NOT_NEEDED', '当前账号已是商家采购账号，无需重复申请。');
+    if (user.businessStatus === 'approved') fail('BUSINESS_APPLICATION_NOT_NEEDED', '当前商家账号已审核通过，无需重复申请。');
     if (!piiEncryptionKey || String(piiEncryptionKey).length < 16) fail('PII_ENCRYPTION_NOT_CONFIGURED', '企业申请信息加密尚未配置。');
-    const companyName = string(payload.companyName, '企业名称', { required: true, max: 120 });
-    const unifiedCode = string(payload.unifiedCode, '统一社会信用代码', { required: true, max: 30 }).toUpperCase();
+    const storeName = string(payload.storeName, '门店名称', { required: true, max: 80 });
+    const storefrontMediaId = string(payload.storefrontMediaId, '门头照片', { required: true, max: 120 });
+    const businessLicenseMediaId = string(payload.businessLicenseMediaId, '营业执照', { required: true, max: 120 });
     const contactName = string(payload.contactName, '联系人', { required: true, max: 40 });
     const contactPhone = string(payload.contactPhone, '联系人手机号', { required: true, max: 30 }).replace(/\s/g, '');
     if (!/^1\d{10}$/.test(contactPhone)) fail('VALIDATION_ERROR', '请输入有效的 11 位联系人手机号。');
     const timestamp = nowIso(clock);
     const existing = await store.findOne('business_applications', { userId: user._id, status: 'pending' });
-    const patch = { userId: user._id, companyName, unifiedCode, contactName, contactPhoneCiphertext: encryptText(contactPhone, piiEncryptionKey), contactPhoneMasked: maskedPhone(contactPhone), status: 'pending', submittedAt: timestamp, updatedAt: timestamp };
+    const patch = { userId: user._id, storeName, storefrontMediaId, businessLicenseMediaId, contactName, contactPhoneCiphertext: encryptText(contactPhone, piiEncryptionKey), contactPhoneMasked: maskedPhone(contactPhone), status: 'pending', submittedAt: timestamp, updatedAt: timestamp };
     let application;
     if (existing) {
       await store.update('business_applications', existing._id, patch);
       application = { ...existing, ...patch, _id: existing._id };
     } else application = await store.create('business_applications', { ...patch, createdAt: timestamp });
     await store.update('users', user._id, { businessStatus: 'pending', updatedAt: timestamp });
-    return { application: pick(application, ['_id', 'companyName', 'unifiedCode', 'contactName', 'contactPhoneMasked', 'status', 'submittedAt', 'updatedAt']) };
+    return { application: pick(application, ['_id', 'storeName', 'storefrontMediaId', 'businessLicenseMediaId', 'contactName', 'contactPhoneMasked', 'status', 'submittedAt', 'updatedAt']) };
   }
 
   async function publicCategories(payload) {
@@ -1559,8 +1604,8 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
         ,demoOrder: demoMode === true
       }
     }),
-    'auth.wechatLogin': async () => ({ user: pick(await ensureWechatUser(), ['_id', 'userType', 'status', 'organizationId', 'businessStatus', 'lastLoginAt']) }),
-    'auth.me': async () => ({ user: pick(await ensureWechatUser(), ['_id', 'userType', 'status', 'organizationId', 'businessStatus', 'lastLoginAt']) }),
+    'auth.wechatLogin': async (payload) => ({ user: pick(await ensureWechatUser(payload && payload.phoneCode ? String(payload.phoneCode) : ''), ['_id', 'userType', 'status', 'organizationId', 'businessStatus', 'lastLoginAt']) }),
+    'auth.me': async (payload) => ({ user: pick(await ensureWechatUser(payload && payload.phoneCode ? String(payload.phoneCode) : ''), ['_id', 'userType', 'status', 'organizationId', 'businessStatus', 'lastLoginAt']) }),
     'auth.applyBusiness': applyBusiness,
     'address.list': userAddresses,
     'address.upsert': userUpsertAddress,
@@ -1597,7 +1642,8 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     'admin.logout': adminLogout,
     'admin.password.change': adminChangeOwnPassword,
     'admin.me': async (payload) => { const { admin, permissions } = await getAdmin(payload); return { admin: cleanAdmin(admin, permissions) }; },
-    'admin.readiness': adminReadiness,
+    'user.media.upload': userUploadBusinessMedia,
+'admin.readiness': adminReadiness,
     'admin.roles.list': adminRoles,
     'admin.roles.upsert': adminUpsertRole,
     'admin.adminUsers.list': adminAdminUsers,

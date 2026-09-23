@@ -1,4 +1,12 @@
 const { fail } = require('./response');
+function pad2(n) { return String(n).padStart(2, '0'); }
+function formatDateTimeLocal(date) {
+  if (!(date instanceof Date)) date = new Date(date);
+  const cn = new Date(date.getTime() + 8 * 3600 * 1000);
+  return cn.getUTCFullYear() + '-' + pad2(cn.getUTCMonth() + 1) + '-' + pad2(cn.getUTCDate())
+    + ' ' + pad2(cn.getUTCHours()) + ':' + pad2(cn.getUTCMinutes()) + ':' + pad2(cn.getUTCSeconds());
+}
+
 const { randomId } = require('./security');
 const {
   inventoryId,
@@ -17,7 +25,7 @@ function cents(value, label) {
   if (!Number.isFinite(parsed) || parsed < 0) fail('VALIDATION_ERROR', `${label}必须是非负金额。`);
   return Math.round(parsed * 100);
 }
-function iso(now) { return now.toISOString(); }
+function iso(now) { return formatDateTimeLocal(now); }
 function audienceVisible(audienceType, userOrType) {
   const audience = ['all', 'c', 'b'].includes(audienceType) ? audienceType : 'all';
   const viewerType = typeof userOrType === 'string'
@@ -132,7 +140,7 @@ async function buildQuote({ store, user, warehouseId, regionCode, items, channel
   const deliverySlot = await resolveDeliverySlot(store, deliverySlotId, freight, now);
   return { items: output, goodsAmountCent, freightAmountCent: freight.amountCent, payableAmountCent: goodsAmountCent + freight.amountCent, freight, deliverySlot };
 }
-function createOrderNo(now) { return `MSX${now.toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}${randomId('').slice(-8).toUpperCase()}`; }
+function createOrderNo(now) { return `MSX${formatDateTimeLocal(now).replace(/[-:TZ.]/g, '').slice(0, 14)}${randomId('').slice(-8).toUpperCase()}`; }
 async function txDocument(tx, collection, id) { return tx.getById(collection, id); }
 async function orderReservations(tx, order) { return Promise.all((order.reservationIds || []).map((id) => txDocument(tx, 'inventory_reservations', id))); }
 async function writeLedger(tx, data) { return tx.set('inventory_ledger', inventoryLedgerId(data.reason, data.referenceId, data.skuId), data); }
@@ -184,19 +192,24 @@ async function createOrder({ store, user, payload, now }) {
     }
     const currentAddress = await txDocument(tx, 'addresses', addressId);
     if (!currentAddress || currentAddress.userId !== user._id || currentAddress.status !== 'active' || !currentAddress.regionCode) fail('ADDRESS_NOT_AVAILABLE', '收货地址已失效，请重新结算。');
+    let sortValue = 1;
+    try {
+      const maxList = await tx.list('orders', { orderBy: [{ field: 'sortValue', direction: 'desc' }], page: 1, pageSize: 1 });
+      if (maxList && maxList.rows && maxList.rows.length > 0 && typeof maxList.rows[0].sortValue === 'number') sortValue = maxList.rows[0].sortValue + 1;
+    } catch (_) { sortValue = 1; }
     if (groupCampaign) await reserveSlot(tx, { groupId: String(payload.groupId), campaignId: groupCampaign._id, userId: user._id, orderId: deterministicOrderId, now });
     const timestamp = iso(now); const paymentMethod = ['offline', 'demo'].includes(payload.paymentMethod) ? payload.paymentMethod : 'wechat';
     const reservationIds = quote.items.map((item) => reservationId(deterministicOrderId, item.skuId));
     const itemIds = quote.items.map((item) => orderItemId(deterministicOrderId, item.skuId));
     const paymentDocumentId = paymentMethod === 'wechat' ? paymentId(deterministicOrderId) : '';
-    const order = { _id: deterministicOrderId, orderNo: createOrderNo(now), userId: user._id, organizationId: user.organizationId || '', customerType: user.userType || 'c', warehouseId, deliveryAreaId: quote.freight.areaId, addressSnapshot: { name: currentAddress.name, phoneMasked: currentAddress.phoneMasked, detail: currentAddress.detail, regionCode: currentAddress.regionCode }, fulfillmentContactCiphertext: currentAddress.phoneCiphertext || '', groupId: payload.groupId ? String(payload.groupId) : '', groupCampaignId: groupCampaign ? groupCampaign._id : '', groupStatus: groupCampaign ? 'reserved' : '', deliverySlotSnapshot: quote.deliverySlot, itemsSnapshot: quote.items, pricingSnapshot: { goodsAmountCent: quote.goodsAmountCent, currency: 'CNY', priceRuleIds: quote.items.map((item) => item.priceRuleId) }, freightSnapshot: quote.freight, totalAmountCent: quote.payableAmountCent, paymentMethod, paymentStatus: paymentMethod === 'wechat' ? 'pending' : (paymentMethod === 'demo' ? 'demo_not_required' : 'not_required'), status: paymentMethod === 'wechat' ? 'pending_payment' : 'pending_confirmation', idempotencyKey, reservationIds, itemIds, paymentId: paymentDocumentId, refundIds: [], refundedAmountCent: 0, activeRefundId: '', createdAt: timestamp, updatedAt: timestamp };
+    const order = { _id: deterministicOrderId, orderNo: createOrderNo(now), userId: user._id, organizationId: user.organizationId || '', customerType: user.userType || 'c', warehouseId, deliveryAreaId: quote.freight.areaId, addressSnapshot: { name: currentAddress.name, phoneMasked: currentAddress.phoneMasked, detail: currentAddress.detail, regionCode: currentAddress.regionCode }, fulfillmentContactCiphertext: currentAddress.phoneCiphertext || '', groupId: payload.groupId ? String(payload.groupId) : '', groupCampaignId: groupCampaign ? groupCampaign._id : '', groupStatus: groupCampaign ? 'reserved' : '', deliverySlotSnapshot: quote.deliverySlot, itemsSnapshot: quote.items, pricingSnapshot: { goodsAmountCent: quote.goodsAmountCent, currency: 'CNY', priceRuleIds: quote.items.map((item) => item.priceRuleId) }, freightSnapshot: quote.freight, totalAmountCent: quote.payableAmountCent, paymentMethod, paymentStatus: paymentMethod === 'wechat' ? 'pending' : (paymentMethod === 'demo' ? 'demo_not_required' : 'not_required'), status: paymentMethod === 'wechat' ? 'pending_payment' : 'pending_confirmation', idempotencyKey, reservationIds, itemIds, paymentId: paymentDocumentId, refundIds: [], refundedAmountCent: 0, activeRefundId: '', sortValue, createdAt: timestamp, updatedAt: timestamp };
     for (const item of quote.items) {
       const inventoryDocumentId = inventoryId(warehouseId, item.skuId);
       const inventory = await txDocument(tx, 'inventory', inventoryDocumentId);
       if (!inventory || Number(inventory.available) < item.quantity) fail('INVENTORY_NOT_AVAILABLE', '库存已变化，请重新结算。');
       const onHand = Number(inventory.onHand || 0); const reserved = Number(inventory.reserved || 0) + item.quantity;
       await tx.update('inventory', inventoryDocumentId, { reserved, available: onHand - reserved, version: Number(inventory.version || 0) + 1, updatedAt: timestamp });
-      const reservation = { _id: reservationId(deterministicOrderId, item.skuId), orderId: deterministicOrderId, skuId: item.skuId, warehouseId, quantity: item.quantity, status: 'reserved', expiresAt: paymentMethod === 'wechat' ? new Date(now.getTime() + 30 * 60 * 1000).toISOString() : '', createdAt: timestamp };
+      const reservation = { _id: reservationId(deterministicOrderId, item.skuId), orderId: deterministicOrderId, skuId: item.skuId, warehouseId, quantity: item.quantity, status: 'reserved', expiresAt: paymentMethod === 'wechat' ? formatDateTimeLocal(new Date(now.getTime() + 30 * 60 * 1000)) : '', createdAt: timestamp };
       await tx.set('inventory_reservations', reservation._id, reservation);
       await writeLedger(tx, { warehouseId, skuId: item.skuId, change: 0, reservedChange: item.quantity, before: onHand - Number(inventory.reserved || 0), after: onHand - reserved, reason: 'order_reserve', referenceType: 'order', referenceId: deterministicOrderId, operatorId: user._id, idempotencyKey, createdAt: timestamp });
       await tx.set('order_items', orderItemId(deterministicOrderId, item.skuId), { _id: orderItemId(deterministicOrderId, item.skuId), orderId: deterministicOrderId, ...item, createdAt: timestamp });

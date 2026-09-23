@@ -1,4 +1,4 @@
-﻿(function adminConsole(global, document) {
+(function adminConsole(global, document) {
   const api = global.MengshixianAdminApi;
   const PAGE_NAME = global.PAGE_NAME || 'overview';
   const PAGE_SIZE = 15;
@@ -94,6 +94,16 @@
   const escapeHtml = (value) => String(value === undefined || value === null ? '' : value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
   const formatDate = (value) => value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '—';
   const formatCents = (value) => `¥${(Number(value || 0) / 100).toFixed(2)}`;
+  const formatRegionPreview = (codes) => {
+    const arr = Array.isArray(codes) ? codes : [];
+    if (!arr.length) return '—';
+    const g = typeof window !== 'undefined' ? window : globalThis;
+    const map = g.MENGSHIXIAN_REGIONS_MAP || {};
+    if (!Object.keys(map).length) return arr.length + ' 个编码';
+    const names = arr.slice(0, 4).map((code) => (map[code] && map[code].district) || code);
+    const suffix = arr.length > 4 ? ' 等' + arr.length + ' 个' : '';
+    return escapeHtml(names.join('、')) + suffix;
+  };
   const splitLines = (value) => String(value || '').split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
   const newIdempotencyKey = () => global.crypto && global.crypto.randomUUID ? global.crypto.randomUUID() : `admin-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -229,16 +239,15 @@
     overlay.classList.add('is-open');
     overlay.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
-    if (form.elements && form.elements.id) form.elements.id.value = '';
-    if (form.elements && form.elements.replacesMediaAssetId) form.elements.replacesMediaAssetId.value = '';
   }
   function closeModal() {
     const overlay = $('#modalOverlay');
     overlay.classList.remove('is-open');
     overlay.setAttribute('aria-hidden', 'true');
     document.body.style.overflow = '';
-    if (modalFormRef && modalFormRef.__modalAnchor) {
-      modalFormRef.__modalAnchor.appendChild(modalFormRef);
+    if (modalFormRef) {
+      delete modalFormRef.dataset.editingId;
+      if (modalFormRef.__modalAnchor) modalFormRef.__modalAnchor.appendChild(modalFormRef);
     }
     modalFormRef = null;
   }
@@ -341,7 +350,7 @@
 
     // ---- 配送区域 ----
     paginateRows(state.deliveryAreas, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.name)}</td><td>${escapeHtml((item.regionCodes || []).length)}</td><td>${badge(item.status)}</td><td class="col-action"><button data-edit-delivery-area="${item._id}">编辑</button></td></tr>`,
+      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.name)}</td><td class="delivery-area-regions-preview">${formatRegionPreview(item.regionCodes)}</td><td>${badge(item.status)}</td><td class="col-action"><button data-edit-delivery-area="${item._id}">编辑</button></td></tr>`,
       'deliveryAreasTable', 4, 'deliveryAreas');
 
     // ---- 运费规则 ----
@@ -360,10 +369,10 @@
       'inventoryTable', 7, 'inventory');
 
     // ---- 订单 ----
-    const orderActions = { pending_confirmation: ['picking', '开始拣货'], picking: ['shipping', '标记发货'], shipping: ['delivered', '标记送达'] };
-    paginateRows(state.orders, (item, seq) => {
+    const orderActions = { pending_confirmation: ['picking', '开始拣货'], picking: ['shipping', '标记发货'], shipping: ['completed', '标记送达'], completed: ['shipping', '取消送达'] };
+    const filteredOrders = state.orders.filter((o) => { const kw = (window.__orderFilters && window.__orderFilters.keyword || '').trim(); const st = (window.__orderFilters && window.__orderFilters.status || ''); const matchKw = !kw || (o.userDisplay || '').includes(kw) || (o.orderNo || '').includes(kw); const matchSt = !st || o.status === st; return matchKw && matchSt; }); paginateRows(filteredOrders, (item, seq) => {
       const action = orderActions[item.status];
-      return `<tr><td class="col-idx" style="text-align:center">${seq}</td><td><code>${escapeHtml(item.orderNo)}</code></td><td>${badge(item.status)}</td><td>${formatCents(item.totalAmountCent)}</td><td>${badge(item.paymentStatus)}</td><td>${formatDate(item.createdAt)}</td><td class="col-action">${action ? `<button data-transition-order="${item._id}" data-next-status="${action[0]}">${action[1]}</button>` : '—'}</td></tr>`;
+      return `<tr><td class="col-idx" style="text-align:center">${seq}</td><td><code>${escapeHtml(item.orderNo)}</code></td><td>${escapeHtml(item.userDisplay || '—')}</td><td>${badge(item.status)}</td><td>${formatCents(item.totalAmountCent)}</td><td>${badge(item.paymentStatus)}</td><td>${formatDate(item.createdAt)}</td><td class="col-action">${action ? `<button data-transition-order="${item._id}" data-next-status="${action[0]}">${action[1]}</button>` : '—'}</td></tr>`;
     }, 'ordersTable', 6, 'orders');
 
     // ---- 退款 ----
@@ -522,21 +531,21 @@ async function refreshAll() {
   }
 
   // ---------- 编辑填充 ----------
-  function fillCategory(id) { const item = state.categories.find((row) => row._id === id); if (!item) return; const form = $('#categoryForm'); form.elements.id.value = item._id; form.elements.name.value = item.name; form.elements.imageMediaId.value = item.imageMediaId || ''; form.elements.sort.value = item.sort || 0; form.elements.status.value = item.status; openModal(form, '编辑分类'); }
-  function fillBanner(id) { const item = state.banners.find((row) => row._id === id); if (!item) return; const form = $('#bannerForm'); form.elements.id.value = item._id; form.elements.title.value = item.title; form.elements.mediaAssetId.value = item.mediaAssetId || ''; form.elements.jumpType.value = item.jumpType || 'none'; form.elements.jumpTarget.value = item.jumpTarget || ''; form.elements.sort.value = item.sort || 0; form.elements.enabled.checked = item.enabled !== false; openModal(form, '编辑轮播图'); }
-  function fillSection(id) { const item = state.sections.find((row) => row._id === id); if (!item) return; const form = $('#sectionForm'); form.elements.id.value = item._id; form.elements.moduleType.value = item.moduleType || 'news'; form.elements.title.value = item.title; form.elements.subtitle.value = item.subtitle || ''; form.elements.linkText.value = item.linkText || '更多'; form.elements.mediaAssetId.value = item.mediaAssetId || ''; form.elements.jumpType.value = item.jumpType || 'none'; form.elements.jumpTarget.value = item.jumpTarget || ''; form.elements.sort.value = item.sort || 0; form.elements.enabled.checked = item.enabled !== false; openModal(form, '编辑首页模块'); }
+  function fillCategory(id) { const item = state.categories.find((row) => row._id === id); if (!item) return; const form = $('#categoryForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.imageMediaId.value = item.imageMediaId || ''; form.elements.sort.value = item.sort || 0; form.elements.status.value = item.status; openModal(form, '编辑分类'); }
+  function fillBanner(id) { const item = state.banners.find((row) => row._id === id); if (!item) return; const form = $('#bannerForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.title.value = item.title; form.elements.mediaAssetId.value = item.mediaAssetId || ''; form.elements.jumpType.value = item.jumpType || 'none'; form.elements.jumpTarget.value = item.jumpTarget || ''; form.elements.sort.value = item.sort || 0; form.elements.enabled.checked = item.enabled !== false; openModal(form, '编辑轮播图'); }
+  function fillSection(id) { const item = state.sections.find((row) => row._id === id); if (!item) return; const form = $('#sectionForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.moduleType.value = item.moduleType || 'news'; form.elements.title.value = item.title; form.elements.subtitle.value = item.subtitle || ''; form.elements.linkText.value = item.linkText || '更多'; form.elements.mediaAssetId.value = item.mediaAssetId || ''; form.elements.jumpType.value = item.jumpType || 'none'; form.elements.jumpTarget.value = item.jumpTarget || ''; form.elements.sort.value = item.sort || 0; form.elements.enabled.checked = item.enabled !== false; openModal(form, '编辑首页模块'); }
   function startMediaVersion(id) { const item = state.media.find((row) => row._id === id); if (!item) return; const form = $('#mediaForm'); form.reset(); form.elements.replacesMediaAssetId.value = item._id; form.elements.name.value = `${item.name} v${Number(item.version || 1) + 1}`; form.elements.type.value = item.type || 'image'; form.elements.source.value = item.source || 'admin_upload'; form.elements.temporary.checked = item.temporary === true; form.elements.mimeType.value = item.mimeType || ''; form.elements.sizeBytes.value = 0; form.elements.startAt.value = String(item.startAt || '').slice(0, 16); form.elements.endAt.value = String(item.endAt || '').slice(0, 16); const targetPlatforms = item.targetPlatforms && item.targetPlatforms.length ? item.targetPlatforms : ['miniapp', 'web']; form.querySelectorAll('input[name="targetPlatforms"]').forEach((input) => { input.checked = targetPlatforms.includes(input.value); }); $('#mediaVersionHint').textContent = `正在为"${item.name}"创建版本 ${Number(item.version || 1) + 1}；请填写新的 CloudBase 文件 ID，旧素材会保留。`; openModal(form, '新建素材版本'); }
-  function fillProduct(id) { const item = state.products.find((row) => row._id === id); if (!item) return; const form = $('#productForm'); form.elements.id.value = item._id; form.elements.name.value = item.name; form.elements.categoryId.value = item.categoryId; form.elements.brand.value = item.brand || ''; form.elements.origin.value = item.origin || ''; form.elements.frozenTemperature.value = item.frozenTemperature || '-18℃'; form.elements.coverMediaId.value = item.coverMediaId || ''; form.elements.sort.value = item.sort || 0; openModal(form, '编辑商品'); }
-  function fillProductMedia(id) { const item = state.productMedia.find((row) => row._id === id); if (!item) return; const form = $('#productMediaForm'); form.elements.id.value = item._id; form.elements.productId.value = item.productId; form.elements.skuId.value = item.skuId || ''; form.elements.mediaAssetId.value = item.mediaAssetId; form.elements.mediaType.value = item.mediaType; form.elements.role.value = item.role || 'detail'; form.elements.sort.value = item.sort || 0; form.elements.enabled.checked = item.enabled !== false; openModal(form, '编辑商品媒体'); }
-  function fillSku(id) { const item = state.skus.find((row) => row._id === id); if (!item) return; const form = $('#skuForm'); form.elements.id.value = item._id; form.elements.productId.value = item.productId; form.elements.specName.value = item.specName; form.elements.packageUnit.value = item.packageUnit || ''; form.elements.netWeight.value = item.netWeight || ''; form.elements.weightUnit.value = item.weightUnit || ''; form.elements.piecesPerCase.value = item.piecesPerCase || 0; form.elements.barcode.value = item.barcode || ''; form.elements.status.value = item.status; openModal(form, '编辑 SKU'); }
-  function fillUserPricing(id) { const item = state.users.find((row) => row._id === id); if (!item) return; const form = $('#userPricingForm'); form.elements.id.value = item._id; form.elements.userType.value = item.userType || 'c'; form.elements.organizationId.value = item.organizationId || ''; form.elements.priceLevel.value = item.priceLevel || ''; openModal(form, '调整用户身份'); }
-  function fillPrice(id) { const item = state.prices.find((row) => row._id === id); if (!item) return; const form = $('#priceForm'); form.elements.id.value = item._id; form.elements.skuId.value = item.skuId; form.elements.scopeType.value = item.scopeType; form.elements.scopeId.value = item.scopeId || ''; form.elements.channel.value = item.channel || 'all'; form.elements.amountCent.value = item.amountCent; form.elements.priority.value = item.priority || 0; form.elements.status.value = item.status; openModal(form, '编辑价格规则'); }
-  function fillWarehouse(id) { const item = state.warehouses.find((row) => row._id === id); if (!item) return; const form = $('#warehouseForm'); form.elements.id.value = item._id; form.elements.code.value = item.code; form.elements.name.value = item.name; form.elements.address.value = item.address || ''; form.elements.status.value = item.status; form.elements.sort.value = item.sort || 0; openModal(form, '编辑仓库'); }
-  function fillDeliveryArea(id) { const item = state.deliveryAreas.find((row) => row._id === id); if (!item) return; const form = $('#deliveryAreaForm'); form.elements.id.value = item._id; form.elements.name.value = item.name; form.elements.regionCodes.value = (item.regionCodes || []).join('\n'); form.elements.warehouseIds.value = (item.warehouseIds || []).join('\n'); form.elements.status.value = item.status; openModal(form, '编辑配送区域'); }
-  function fillFreight(id) { const item = state.freightRules.find((row) => row._id === id); if (!item) return; const form = $('#freightForm'); form.elements.id.value = item._id; form.elements.name.value = item.name; form.elements.deliveryAreaId.value = item.deliveryAreaId; form.elements.warehouseId.value = item.warehouseId || ''; form.elements.baseFeeCent.value = item.baseFeeCent || 0; form.elements.additionalFeeCent.value = item.additionalFeeCent || 0; form.elements.freeThresholdCent.value = item.freeThresholdCent || 0; form.elements.status.value = item.status; openModal(form, '编辑运费规则'); }
-  function fillDeliverySlot(id) { const item = state.deliverySlots.find((row) => row._id === id); if (!item) return; const form = $('#deliverySlotForm'); form.elements.id.value = item._id; form.elements.name.value = item.name; form.elements.deliveryAreaId.value = item.deliveryAreaId; form.elements.warehouseId.value = item.warehouseId || ''; form.elements.startTime.value = item.startTime; form.elements.endTime.value = item.endTime; form.elements.status.value = item.status; openModal(form, '编辑配送时段'); }
-  function fillGroupCampaign(id) { const item = state.groupCampaigns.find((row) => row._id === id); if (!item) return; const form = $('#groupCampaignForm'); form.elements.id.value = item._id; form.elements.title.value = item.title; form.elements.skuId.value = item.skuId; form.elements.groupSize.value = item.groupSize; form.elements.durationMinutes.value = item.durationMinutes; form.elements.groupPriceCent.value = item.groupPriceCent; form.elements.targetUserType.value = item.targetUserType || 'all'; form.elements.status.value = item.status; openModal(form, '编辑拼团活动'); }
-  function fillAdminUser(id) { const item = state.adminUsers.find((row) => row.id === id); if (!item) return; const form = $('#adminUserForm'); form.elements.id.value = item.id; form.elements.username.value = item.username; form.elements.displayName.value = item.displayName; form.elements.password.value = ''; form.elements.roleIds.value = (item.roleIds || []).join('\n'); form.elements.status.value = item.status; openModal(form, '编辑管理员'); }
+  function fillProduct(id) { const item = state.products.find((row) => row._id === id); if (!item) return; const form = $('#productForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.categoryId.value = item.categoryId; form.elements.brand.value = item.brand || ''; form.elements.origin.value = item.origin || ''; form.elements.frozenTemperature.value = item.frozenTemperature || '-18℃'; form.elements.coverMediaId.value = item.coverMediaId || ''; form.elements.sort.value = item.sort || 0; openModal(form, '编辑商品'); }
+  function fillProductMedia(id) { const item = state.productMedia.find((row) => row._id === id); if (!item) return; const form = $('#productMediaForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.productId.value = item.productId; form.elements.skuId.value = item.skuId || ''; form.elements.mediaAssetId.value = item.mediaAssetId; form.elements.mediaType.value = item.mediaType; form.elements.role.value = item.role || 'detail'; form.elements.sort.value = item.sort || 0; form.elements.enabled.checked = item.enabled !== false; openModal(form, '编辑商品媒体'); }
+  function fillSku(id) { const item = state.skus.find((row) => row._id === id); if (!item) return; const form = $('#skuForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.productId.value = item.productId; form.elements.specName.value = item.specName; form.elements.packageUnit.value = item.packageUnit || ''; form.elements.netWeight.value = item.netWeight || ''; form.elements.weightUnit.value = item.weightUnit || ''; form.elements.piecesPerCase.value = item.piecesPerCase || 0; form.elements.barcode.value = item.barcode || ''; form.elements.status.value = item.status; openModal(form, '编辑 SKU'); }
+  function fillUserPricing(id) { const item = state.users.find((row) => row._id === id); if (!item) return; const form = $('#userPricingForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.userType.value = item.userType || 'c'; form.elements.organizationId.value = item.organizationId || ''; form.elements.priceLevel.value = item.priceLevel || ''; openModal(form, '调整用户身份'); }
+  function fillPrice(id) { const item = state.prices.find((row) => row._id === id); if (!item) return; const form = $('#priceForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.skuId.value = item.skuId; form.elements.scopeType.value = item.scopeType; form.elements.scopeId.value = item.scopeId || ''; form.elements.channel.value = item.channel || 'all'; form.elements.amountCent.value = item.amountCent; form.elements.priority.value = item.priority || 0; form.elements.status.value = item.status; openModal(form, '编辑价格规则'); }
+  function fillWarehouse(id) { const item = state.warehouses.find((row) => row._id === id); if (!item) return; const form = $('#warehouseForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.code.value = item.code; form.elements.name.value = item.name; form.elements.address.value = item.address || ''; form.elements.status.value = item.status; form.elements.sort.value = item.sort || 0; openModal(form, '编辑仓库'); }
+  function fillDeliveryArea(id) { const item = state.deliveryAreas.find((row) => row._id === id); if (!item) return; const form = $('#deliveryAreaForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.regionCodes.value = (item.regionCodes || []).join('\n'); const namesTa = form.querySelector('textarea[name="regionNames"]'); if (namesTa) namesTa.value = (item.regionNames || []).join('\n'); form.elements.warehouseIds.value = (item.warehouseIds || []).join('\n'); form.elements.status.value = item.status; openModal(form, '编辑配送区域'); setTimeout(function(){ if(form.__syncRegionCodes) form.__syncRegionCodes(); }, 50); }
+  function fillFreight(id) { const item = state.freightRules.find((row) => row._id === id); if (!item) return; const form = $('#freightForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.deliveryAreaId.value = item.deliveryAreaId; form.elements.warehouseId.value = item.warehouseId || ''; form.elements.baseFeeCent.value = item.baseFeeCent || 0; form.elements.additionalFeeCent.value = item.additionalFeeCent || 0; form.elements.freeThresholdCent.value = item.freeThresholdCent || 0; form.elements.status.value = item.status; openModal(form, '编辑运费规则'); }
+  function fillDeliverySlot(id) { const item = state.deliverySlots.find((row) => row._id === id); if (!item) return; const form = $('#deliverySlotForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.deliveryAreaId.value = item.deliveryAreaId; form.elements.warehouseId.value = item.warehouseId || ''; form.elements.startTime.value = item.startTime; form.elements.endTime.value = item.endTime; form.elements.status.value = item.status; openModal(form, '编辑配送时段'); }
+  function fillGroupCampaign(id) { const item = state.groupCampaigns.find((row) => row._id === id); if (!item) return; const form = $('#groupCampaignForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.title.value = item.title; form.elements.skuId.value = item.skuId; form.elements.groupSize.value = item.groupSize; form.elements.durationMinutes.value = item.durationMinutes; form.elements.groupPriceCent.value = item.groupPriceCent; form.elements.targetUserType.value = item.targetUserType || 'all'; form.elements.status.value = item.status; openModal(form, '编辑拼团活动'); }
+  function fillAdminUser(id) { const item = state.adminUsers.find((row) => row.id === id); if (!item) return; const form = $('#adminUserForm'); form.elements.id.value = item.id; form.dataset.editingId = id; form.elements.username.value = item.username; form.elements.displayName.value = item.displayName; form.elements.password.value = ''; form.elements.roleIds.value = (item.roleIds || []).join('\n'); form.elements.status.value = item.status; openModal(form, '编辑管理员'); }
 
   async function stageFile(file) {
     const text = await file.text();
@@ -602,48 +611,48 @@ async function refreshAll() {
 
     // 表单 submit
     const catForm = document.getElementById('categoryForm');
-    if (catForm) catForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.categories.upsert', { id: form.get('id'), name: form.get('name'), imageMediaId: form.get('imageMediaId'), sort: Number(form.get('sort')), status: form.get('status') }); closeModal(); await refreshAll(); message('分类已保存。'); } catch (error) { message(error.message, true); } });
+    if (catForm) catForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.categories.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), imageMediaId: form.get('imageMediaId'), sort: Number(form.get('sort')), status: form.get('status') }); closeModal(); await refreshAll(); message('分类已保存。'); } catch (error) { message(error.message, true); } });
 
     const bannerForm = document.getElementById('bannerForm');
-    if (bannerForm) bannerForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.banners.upsert', { id: form.get('id'), title: form.get('title'), mediaAssetId: form.get('mediaAssetId'), jumpType: form.get('jumpType'), jumpTarget: form.get('jumpTarget'), sort: Number(form.get('sort')), enabled: form.get('enabled') === 'on' }); closeModal(); await refreshAll(); message('轮播图配置已保存。'); } catch (error) { message(error.message, true); } });
+    if (bannerForm) bannerForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.banners.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), title: form.get('title'), mediaAssetId: form.get('mediaAssetId'), jumpType: form.get('jumpType'), jumpTarget: form.get('jumpTarget'), sort: Number(form.get('sort')), enabled: form.get('enabled') === 'on' }); closeModal(); await refreshAll(); message('轮播图配置已保存。'); } catch (error) { message(error.message, true); } });
 
     const sectionForm = document.getElementById('sectionForm');
-    if (sectionForm) sectionForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.homeSections.upsert', { id: form.get('id'), moduleType: form.get('moduleType'), title: form.get('title'), subtitle: form.get('subtitle'), linkText: form.get('linkText'), mediaAssetId: form.get('mediaAssetId'), jumpType: form.get('jumpType'), jumpTarget: form.get('jumpTarget'), sort: Number(form.get('sort')), enabled: form.get('enabled') === 'on' }); closeModal(); await refreshAll(); message('首页模块已保存。'); } catch (error) { message(error.message, true); } });
+    if (sectionForm) sectionForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.homeSections.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), moduleType: form.get('moduleType'), title: form.get('title'), subtitle: form.get('subtitle'), linkText: form.get('linkText'), mediaAssetId: form.get('mediaAssetId'), jumpType: form.get('jumpType'), jumpTarget: form.get('jumpTarget'), sort: Number(form.get('sort')), enabled: form.get('enabled') === 'on' }); closeModal(); await refreshAll(); message('首页模块已保存。'); } catch (error) { message(error.message, true); } });
 
     const productForm = document.getElementById('productForm');
-    if (productForm) productForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.products.upsert', { id: form.get('id'), name: form.get('name'), categoryId: form.get('categoryId'), brand: form.get('brand'), origin: form.get('origin'), frozenTemperature: form.get('frozenTemperature'), coverMediaId: form.get('coverMediaId'), sort: Number(form.get('sort')) }); closeModal(); await refreshAll(); message('商品信息已保存。'); } catch (error) { message(error.message, true); } });
+    if (productForm) productForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.products.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), categoryId: form.get('categoryId'), brand: form.get('brand'), origin: form.get('origin'), frozenTemperature: form.get('frozenTemperature'), coverMediaId: form.get('coverMediaId'), sort: Number(form.get('sort')) }); closeModal(); await refreshAll(); message('商品信息已保存。'); } catch (error) { message(error.message, true); } });
 
     const productMediaForm = document.getElementById('productMediaForm');
-    if (productMediaForm) productMediaForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.productMedia.upsert', { id: form.get('id'), productId: form.get('productId'), skuId: form.get('skuId'), mediaAssetId: form.get('mediaAssetId'), mediaType: form.get('mediaType'), role: form.get('role'), sort: Number(form.get('sort')), enabled: form.get('enabled') === 'on' }); closeModal(); await refreshAll(); message('商品媒体关联已保存。'); } catch (error) { message(error.message, true); } });
+    if (productMediaForm) productMediaForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.productMedia.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), productId: form.get('productId'), skuId: form.get('skuId'), mediaAssetId: form.get('mediaAssetId'), mediaType: form.get('mediaType'), role: form.get('role'), sort: Number(form.get('sort')), enabled: form.get('enabled') === 'on' }); closeModal(); await refreshAll(); message('商品媒体关联已保存。'); } catch (error) { message(error.message, true); } });
 
     const skuForm = document.getElementById('skuForm');
-    if (skuForm) skuForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.skus.upsert', { id: form.get('id'), productId: form.get('productId'), specName: form.get('specName'), packageUnit: form.get('packageUnit'), netWeight: form.get('netWeight'), weightUnit: form.get('weightUnit'), piecesPerCase: Number(form.get('piecesPerCase')), barcode: form.get('barcode'), status: form.get('status') }); closeModal(); await refreshAll(); message('SKU 信息已保存。'); } catch (error) { message(error.message, true); } });
+    if (skuForm) skuForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.skus.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), productId: form.get('productId'), specName: form.get('specName'), packageUnit: form.get('packageUnit'), netWeight: form.get('netWeight'), weightUnit: form.get('weightUnit'), piecesPerCase: Number(form.get('piecesPerCase')), barcode: form.get('barcode'), status: form.get('status') }); closeModal(); await refreshAll(); message('SKU 信息已保存。'); } catch (error) { message(error.message, true); } });
 
     const userPricingForm = document.getElementById('userPricingForm');
-    if (userPricingForm) userPricingForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.users.setPricingProfile', { id: form.get('id'), userType: form.get('userType'), organizationId: form.get('organizationId'), priceLevel: form.get('priceLevel') }); closeModal(); await refreshAll(); message('用户身份与价格等级已保存。'); } catch (error) { message(error.message, true); } });
+    if (userPricingForm) userPricingForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.users.setPricingProfile', { id: event.currentTarget.dataset.editingId || form.get('id'), userType: form.get('userType'), organizationId: form.get('organizationId'), priceLevel: form.get('priceLevel') }); closeModal(); await refreshAll(); message('用户身份与价格等级已保存。'); } catch (error) { message(error.message, true); } });
 
     const priceForm = document.getElementById('priceForm');
-    if (priceForm) priceForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.prices.upsert', { id: form.get('id'), skuId: form.get('skuId'), scopeType: form.get('scopeType'), scopeId: form.get('scopeId') || '', channel: form.get('channel'), amountCent: Number(form.get('amountCent')), priority: Number(form.get('priority')), status: form.get('status') }); closeModal(); await refreshAll(); message('价格规则已保存。'); } catch (error) { message(error.message, true); } });
+    if (priceForm) priceForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.prices.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), skuId: form.get('skuId'), scopeType: form.get('scopeType'), scopeId: form.get('scopeId') || '', channel: form.get('channel'), amountCent: Number(form.get('amountCent')), priority: Number(form.get('priority')), status: form.get('status') }); closeModal(); await refreshAll(); message('价格规则已保存。'); } catch (error) { message(error.message, true); } });
 
     const warehouseForm = document.getElementById('warehouseForm');
-    if (warehouseForm) warehouseForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.warehouses.upsert', { id: form.get('id'), code: form.get('code'), name: form.get('name'), address: form.get('address'), sort: Number(form.get('sort')), status: form.get('status') }); closeModal(); await refreshAll(); message('仓库已保存。'); } catch (error) { message(error.message, true); } });
+    if (warehouseForm) warehouseForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.warehouses.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), code: form.get('code'), name: form.get('name'), address: form.get('address'), sort: Number(form.get('sort')), status: form.get('status') }); closeModal(); await refreshAll(); message('仓库已保存。'); } catch (error) { message(error.message, true); } });
 
     const deliveryAreaForm = document.getElementById('deliveryAreaForm');
-    if (deliveryAreaForm) deliveryAreaForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.deliveryAreas.upsert', { id: form.get('id'), name: form.get('name'), regionCodes: splitLines(form.get('regionCodes')), warehouseIds: splitLines(form.get('warehouseIds')), status: form.get('status') }); closeModal(); await refreshAll(); message('配送区域已保存。'); } catch (error) { message(error.message, true); } });
+    if (deliveryAreaForm) deliveryAreaForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.deliveryAreas.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), regionCodes: splitLines(form.get('regionCodes')), regionNames: splitLines(form.get('regionNames')), warehouseIds: splitLines(form.get('warehouseIds')), status: form.get('status') }); closeModal(); await refreshAll(); message('配送区域已保存。'); } catch (error) { message(error.message, true); } });
 
     const freightForm = document.getElementById('freightForm');
-    if (freightForm) freightForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.freightRules.upsert', { id: form.get('id'), name: form.get('name'), deliveryAreaId: form.get('deliveryAreaId'), warehouseId: form.get('warehouseId'), baseFeeCent: Number(form.get('baseFeeCent')), additionalFeeCent: Number(form.get('additionalFeeCent')), freeThresholdCent: Number(form.get('freeThresholdCent')), status: form.get('status') }); closeModal(); await refreshAll(); message('运费规则已保存。'); } catch (error) { message(error.message, true); } });
+    if (freightForm) freightForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.freightRules.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), deliveryAreaId: form.get('deliveryAreaId'), warehouseId: form.get('warehouseId'), baseFeeCent: Number(form.get('baseFeeCent')), additionalFeeCent: Number(form.get('additionalFeeCent')), freeThresholdCent: Number(form.get('freeThresholdCent')), status: form.get('status') }); closeModal(); await refreshAll(); message('运费规则已保存。'); } catch (error) { message(error.message, true); } });
 
     const deliverySlotForm = document.getElementById('deliverySlotForm');
-    if (deliverySlotForm) deliverySlotForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.deliverySlots.upsert', { id: form.get('id'), name: form.get('name'), deliveryAreaId: form.get('deliveryAreaId'), warehouseId: form.get('warehouseId') || '', startTime: form.get('startTime'), endTime: form.get('endTime'), status: form.get('status') }); closeModal(); await refreshAll(); message('配送时段已保存。'); } catch (error) { message(error.message, true); } });
+    if (deliverySlotForm) deliverySlotForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.deliverySlots.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), deliveryAreaId: form.get('deliveryAreaId'), warehouseId: form.get('warehouseId') || '', startTime: form.get('startTime'), endTime: form.get('endTime'), status: form.get('status') }); closeModal(); await refreshAll(); message('配送时段已保存。'); } catch (error) { message(error.message, true); } });
   const inventoryForm = document.getElementById('inventoryForm');
   if (inventoryForm) inventoryForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.inventory.adjust', { warehouseId: form.get('warehouseId'), skuId: form.get('skuId'), change: Number(form.get('change')), reason: form.get('reason'), idempotencyKey: newIdempotencyKey() }); event.currentTarget.reset(); closeModal(); await refreshAll(); message('库存已调整并写入流水。'); } catch (error) { message(error.message, true); } });
 
     const groupCampaignForm = document.getElementById('groupCampaignForm');
-    if (groupCampaignForm) groupCampaignForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.groupCampaigns.upsert', { id: form.get('id'), title: form.get('title'), skuId: form.get('skuId'), groupSize: Number(form.get('groupSize')), durationMinutes: Number(form.get('durationMinutes')), groupPriceCent: Number(form.get('groupPriceCent')), targetUserType: form.get('targetUserType'), status: form.get('status') }); closeModal(); await refreshAll(); message('拼团活动已保存。'); } catch (error) { message(error.message, true); } });
+    if (groupCampaignForm) groupCampaignForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.groupCampaigns.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), title: form.get('title'), skuId: form.get('skuId'), groupSize: Number(form.get('groupSize')), durationMinutes: Number(form.get('durationMinutes')), groupPriceCent: Number(form.get('groupPriceCent')), targetUserType: form.get('targetUserType'), status: form.get('status') }); closeModal(); await refreshAll(); message('拼团活动已保存。'); } catch (error) { message(error.message, true); } });
 
     const adminUserForm = document.getElementById('adminUserForm');
-    if (adminUserForm) adminUserForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const payload = { id: form.get('id'), username: form.get('username'), displayName: form.get('displayName'), roleIds: splitLines(form.get('roleIds')), status: form.get('status') }; if (form.get('password')) payload.password = form.get('password'); closeModal(); await call('admin.adminUsers.upsert', payload); await refreshAll(); message('管理员账号已保存。'); } catch (error) { message(error.message || '操作失败。', true); } });
+    if (adminUserForm) adminUserForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const payload = { id: event.currentTarget.dataset.editingId || form.get('id'), username: form.get('username'), displayName: form.get('displayName'), roleIds: splitLines(form.get('roleIds')), status: form.get('status') }; if (form.get('password')) payload.password = form.get('password'); closeModal(); await call('admin.adminUsers.upsert', payload); await refreshAll(); message('管理员账号已保存。'); } catch (error) { message(error.message || '操作失败。', true); } });
 
     const mediaSearch = document.getElementById('mediaSearch');
     if (mediaSearch) mediaSearch.addEventListener('input', (event) => { const term = event.target.value.trim().toLowerCase(); document.querySelectorAll('#mediaTable tbody tr').forEach((tr) => { tr.style.display = !term || tr.textContent.toLowerCase().includes(term) ? '' : 'none'; }); });
@@ -667,6 +676,7 @@ async function refreshAll() {
         const form = document.querySelector(addBtn.dataset.addForm);
         if (form) {
           form.reset();
+          delete form.dataset.editingId;
           if (form.elements.id) form.elements.id.value = '';
           openModal(form, addBtn.dataset.addTitle || '新增');
         }
@@ -756,6 +766,23 @@ async function refreshAll() {
     if (title) title.textContent = meta.title;
 
     bind();
+    // 订单筛选
+    const orderFilterBtn = document.getElementById('orderFilterBtn');
+    const orderFilterReset = document.getElementById('orderFilterReset');
+    const orderKeyword = document.getElementById('orderFilterKeyword');
+    const orderStatus = document.getElementById('orderFilterStatus');
+    window.__orderFilters = { keyword: '', status: '' };
+    if (orderFilterBtn) orderFilterBtn.addEventListener('click', () => {
+      window.__orderFilters.keyword = orderKeyword ? orderKeyword.value : '';
+      window.__orderFilters.status = orderStatus ? orderStatus.value : '';
+      render();
+    });
+    if (orderFilterReset) orderFilterReset.addEventListener('click', () => {
+      if (orderKeyword) orderKeyword.value = '';
+      if (orderStatus) orderStatus.value = '';
+      window.__orderFilters = { keyword: '', status: '' };
+      render();
+    });
     try {
       state.admin = (await call('admin.me', {})).admin;
       $('#adminUser').textContent = state.admin ? `${state.admin.displayName} · 已登录` : '已登录';
@@ -773,5 +800,10 @@ async function refreshAll() {
   }
   init();
 }(window, document));
+
+
+
+
+
 
 
