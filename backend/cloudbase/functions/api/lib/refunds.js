@@ -1,4 +1,12 @@
 const { fail } = require('./response');
+function pad2(n) { return String(n).padStart(2, '0'); }
+function formatDateTimeLocal(date) {
+  if (!(date instanceof Date)) date = new Date(date);
+  const cn = new Date(date.getTime() + 8 * 3600 * 1000);
+  return cn.getUTCFullYear() + '-' + pad2(cn.getUTCMonth() + 1) + '-' + pad2(cn.getUTCDate())
+    + ' ' + pad2(cn.getUTCHours()) + ':' + pad2(cn.getUTCMinutes()) + ':' + pad2(cn.getUTCSeconds());
+}
+
 const { randomId } = require('./security');
 const { refundId, inventoryId, inventoryLedgerId } = require('./transaction-ids');
 const { removePaidMember } = require('./groups');
@@ -25,7 +33,7 @@ async function requestRefund({ store, user, payload, now }) {
     const amountCent = Number(payload.amountCent);
     if (!Number.isInteger(amountCent) || amountCent < 1 || amountCent > paid - refunded) fail('REFUND_AMOUNT_INVALID', '退款金额超过可退余额。');
     if (order.status === 'pending_confirmation' && amountCent !== paid - refunded) fail('REFUND_AMOUNT_INVALID', '未出库订单必须一次性申请剩余全额退款。');
-    const timestamp = now.toISOString();
+    const timestamp = formatDateTimeLocal(now);
     const refund = { _id: deterministicRefundId, refundNo: `R${randomId('').slice(-14).toUpperCase()}`, orderId, userId: user._id, paymentId: String(order.paymentId || ''), amountCent, currency: 'CNY', reason: String(payload.reason || '').slice(0, 300), status: 'requested', idempotencyKey, createdAt: timestamp, updatedAt: timestamp };
     await tx.set('refunds', deterministicRefundId, refund);
     await tx.update('orders', orderId, { activeRefundId: deterministicRefundId, refundIds: [...new Set([...(order.refundIds || []), deterministicRefundId])], updatedAt: timestamp });
@@ -42,7 +50,7 @@ async function reviewRefund({ store, admin, payload, now }) {
   return store.runTransaction(async (tx) => {
     const refund = await tx.getById('refunds', id);
     if (!refund || refund.status !== 'requested') fail('REFUND_NOT_FOUND', '退款申请不存在或已处理。');
-    const timestamp = now.toISOString();
+    const timestamp = formatDateTimeLocal(now);
     const patch = { status: decision === 'approved' ? 'processing' : 'rejected', reviewedBy: admin._id, reviewedAt: timestamp, reviewNote: String(payload.reviewNote || '').slice(0, 300), updatedAt: timestamp };
     await tx.update('refunds', id, patch);
     if (decision === 'rejected') {
@@ -63,7 +71,7 @@ async function confirmRefund({ store, refund, refundTransactionId, refundedAmoun
     if (Number(current.amountCent) !== Number(refundedAmountCent)) fail('REFUND_AMOUNT_MISMATCH', '退款金额与申请金额不一致。');
     const order = await tx.getById('orders', current.orderId);
     if (!order || order.paymentStatus !== 'paid') fail('ORDER_REFUND_NOT_AVAILABLE', '订单当前不能退款。');
-    const timestamp = now.toISOString();
+    const timestamp = formatDateTimeLocal(now);
     const totalRefunded = Number(order.refundedAmountCent || 0) + Number(current.amountCent || 0);
     const orderPatch = { refundedAmountCent: totalRefunded, activeRefundId: '', refundStatus: totalRefunded >= Number(order.totalAmountCent || 0) ? 'refunded' : 'partially_refunded', updatedAt: timestamp };
     if (order.status === 'pending_confirmation') orderPatch.status = 'cancelled';
