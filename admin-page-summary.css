@@ -1,0 +1,4 @@
+.page-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;max-width:1480px;margin:0 auto 20px}
+.page-summary-item{min-height:93px;padding:15px 18px;border:1px solid var(--line);border-radius:11px;background:#fff}
+.page-summary-item span{display:block;margin-bottom:4px;color:var(--muted);font-size:12px}
+.page-summary-item strong{font-size:26px;line-height:1.1;font-variant-numeric:tabular-nums}

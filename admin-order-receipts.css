@@ -1,0 +1,27 @@
+.admin-receipt-dialog{width:min(640px,calc(100vw - 24px));max-height:min(88vh,900px);padding:0;border:1px solid var(--line,#dbe5f1);border-radius:14px;background:#fff;color:var(--ink,#172437);box-shadow:0 24px 70px rgba(13,43,78,.22);overflow:auto}
+.admin-receipt-dialog::backdrop{background:rgba(18,39,66,.48)}
+.admin-receipt-panel{padding:22px}
+.admin-receipt-panel header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px}
+.admin-receipt-panel h3{margin:0;font-size:19px}
+.admin-receipt-panel header button{flex:none;width:34px;height:34px;border:1px solid #d5e0ee;border-radius:8px;background:#fff;color:#48627e;font-size:22px;line-height:1}
+.admin-receipt-warning{margin:0 0 14px;padding:11px 13px;border-left:3px solid var(--blue,#1565d8);border-radius:6px;background:#edf5ff;color:#315d91}
+.admin-receipt-panel [data-receipt-state]{margin:0 0 8px;color:#315d91;font-weight:650}
+.admin-receipt-panel [data-receipt-state]:empty,.admin-receipt-panel [data-receipt-error]:empty{display:none}
+.admin-receipt-panel [data-receipt-error]{margin:0 0 8px;color:var(--danger,#c93c4d)}
+.admin-receipt-panel [data-receipt-summary]{margin:0 0 16px;padding:13px 15px;border:1px solid #dce8f6;border-radius:9px;background:#f7faff;font-weight:600;line-height:1.8}
+.admin-receipt-panel [data-receipt-summary]:empty{display:none}
+.admin-receipt-panel [data-receipt-history]{margin:0 0 18px}
+.admin-receipt-panel [data-receipt-history] h4{margin:0 0 8px;font-size:14px}
+.admin-receipt-panel [data-receipt-history] ol{max-height:180px;margin:0;padding:0 0 0 21px;overflow:auto;color:#52657b}
+.admin-receipt-panel [data-receipt-history] li{padding:7px 3px;border-bottom:1px solid #edf1f5;line-height:1.6;overflow-wrap:anywhere}
+.admin-receipt-panel form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 14px;padding-top:14px;border-top:1px solid var(--line,#dbe5f1)}
+.admin-receipt-panel form label{margin:0 0 12px}
+.admin-receipt-panel form label:nth-of-type(4){grid-column:1/-1}
+.admin-receipt-panel form button{grid-column:1/-1;width:auto;justify-self:start;padding:10px 18px;border-radius:8px;background:var(--blue,#1565d8);color:#fff;font-weight:700}
+.admin-receipt-panel form button:hover:not(:disabled){background:var(--blue-dark,#0d4fae)}
+.admin-receipt-panel button:disabled{opacity:.58;cursor:not-allowed}
+.admin-receipt-panel [data-receipt-pending]{margin:0 0 18px;padding:12px 14px;border:1px solid #f0d8aa;border-radius:8px;background:#fff9ec;color:#6f4e17}
+.admin-receipt-panel [data-receipt-pending] p{margin:0 0 9px}
+.admin-receipt-panel [data-receipt-pending] button{margin:0 8px 4px 0;padding:7px 11px;border:1px solid #bfd2ec;border-radius:7px;background:#fff;color:var(--blue,#1565d8);font-weight:650}
+.admin-receipt-dialog [hidden]{display:none!important}
+@media(max-width:600px){.admin-receipt-panel{padding:16px}.admin-receipt-panel form{grid-template-columns:1fr}.admin-receipt-panel form label:nth-of-type(4){grid-column:auto}}

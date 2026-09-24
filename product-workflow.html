@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>梦食鲜｜商品编辑</title>
+  <link rel="icon" href="assets/logo.png" type="image/png">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="admin-shell.css">
+  <link rel="stylesheet" href="admin-product-workflow.css">
+</head>
+<body>
+  <main class="admin-shell" id="adminShell">
+    <aside class="sidebar" id="adminSidebar"></aside>
+    <section class="workspace">
+      <header class="workspace-head" id="adminHeader"></header>
+      <p class="notice" id="globalMessage" aria-live="polite"></p>
+      <section class="panel is-active" data-panel="productWorkflow">
+        <div class="workflow-top"><a href="products.html">← 返回商品列表</a><span id="workflowStatus"></span></div>
+        <div class="workflow-lead"><div><p class="eyebrow">商品中心 / 编辑流程</p><h1 id="workflowTitle">正在读取商品…</h1><p>按顺序核对资料、图片、规格和价格，再决定是否上架。保存与上架是两件事。</p></div></div>
+        <nav class="workflow-steps" aria-label="商品编辑步骤"><a href="#basicSection">1 基本资料</a><a href="#mediaSection">2 图片与视频</a><a href="#skuSection">3 规格与价格</a><a href="#reviewSection">4 核对并上架</a></nav>
+        <div id="workflowContent" aria-live="polite"><p>正在加载当前后台数据…</p></div>
+      </section>
+    </section>
+  </main>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.9.2/cloudbase.full.js"></script>
+  <script src="config.js"></script>
+  <script src="api-client.js"></script>
+  <script>if (!window.MengshixianAdminApi || !window.MengshixianAdminApi.getToken()) window.location.replace('login.html');</script>
+  <script src="paging.js"></script>
+  <script>window.PAGE_NAME = 'productWorkflow';</script>
+  <script src="admin-page-registry.js"></script>
+  <script src="admin-shell.js"></script>
+  <script src="admin-product-data.js"></script>
+  <script src="admin-product-preview.js"></script>
+  <script src="admin-product-workflow.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+.audit-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:4px 2px 21px;border-bottom:1px solid var(--line)}
+.audit-heading .eyebrow{margin:0 0 5px}.audit-heading h3{margin:0 0 6px;font-size:20px;letter-spacing:-.02em}.audit-heading p:last-child{margin:0;color:var(--muted);font-size:13px}
+.audit-count{flex:none;padding:7px 11px;border-radius:7px;background:var(--blue-soft);color:var(--blue-dark);font-size:12px;font-weight:700}
+.audit-feedback{padding:27px 15px;margin:0;color:var(--muted);text-align:center}.audit-feedback.is-error{color:var(--danger)}
+.audit-timeline{position:relative;list-style:none;margin:0;padding:7px 0 5px 0}.audit-timeline:before{content:"";position:absolute;left:17px;top:27px;bottom:25px;width:2px;background:#d5e4f5}
+.audit-event{position:relative;display:flex;align-items:flex-start;gap:19px;padding:17px 2px 18px}.audit-event+.audit-event{border-top:1px solid #eef2f6}
+.audit-event-number{position:relative;z-index:1;display:grid;place-items:center;flex:none;width:34px;height:34px;border:2px solid #d0e4fa;border-radius:50%;background:#f4f9ff;color:var(--blue-dark);font-size:12px;font-weight:750}
+.audit-event-body{min-width:0;flex:1}.audit-event-time{display:block;margin:0 0 5px;color:#70829a;font-size:12px}.audit-event-title{margin:0 0 7px;font-size:15px;line-height:1.35;color:var(--ink)}
+.audit-event-object,.audit-event-actor{margin:0 0 4px;color:#435871;font-size:13px;overflow-wrap:anywhere}.audit-event-actor{color:#64778c}
+.audit-event-detail{margin-top:8px;color:#74849a;font-size:12px}.audit-event-detail summary{width:max-content;max-width:100%;cursor:pointer;color:var(--blue-dark)}.audit-event-detail p{margin:7px 0 0;padding:9px 11px;border-radius:7px;background:#f4f7fa;overflow-wrap:anywhere}
+.audit-more{text-align:center}.audit-more button{padding:9px 18px;border:1px solid #b8d0ee;border-radius:8px;background:#fff;color:var(--blue-dark);font-weight:700}.audit-more button:hover{background:var(--blue-soft)}
+@media(max-width:680px){.audit-heading{display:block}.audit-count{display:inline-block;margin-top:12px}.audit-event{gap:12px}.audit-event-title{font-size:14px}}

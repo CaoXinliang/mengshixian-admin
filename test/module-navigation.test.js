@@ -1,22 +1,45 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const source = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-const styles = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const read = (name) => fs.readFileSync(path.join(root, name), 'utf8');
+const context = { window: {} };
+vm.runInNewContext(read('admin-page-registry.js'), context);
+const registry = context.window.MengshixianAdminPages;
 
-const moduleNames = ['工作台', '商品中心', '订单中心', '库存配送', '客户中心', '内容运营', '营销中心', '系统管理'];
-moduleNames.forEach((name) => assert.match(html, new RegExp(`<strong>${name}</strong>`), `左侧必须包含业务模块：${name}`));
+assert.deepEqual(Array.from(registry.groups, (group) => group.label), [
+  '工作台', '商品中心', '订单中心', '库存配送', '客户中心', '内容运营', '营销中心', '系统管理'
+]);
+assert.equal(Object.keys(registry.pages).length, 23, '开店检查及原有业务页面必须继续独立存在');
 
-assert.equal((html.match(/data-module=/g) || []).length, 8, '左侧只能展示 8 个一级业务模块');
-assert.doesNotMatch(html.match(/<nav id="mainNav"[\s\S]*?<\/nav>/)[0], /data-panel=/, '一级导航不得继续平铺技术功能面板');
-assert.match(html, /id="moduleTabs"/, '业务模块内部必须提供二级页签容器');
-assert.match(source, /catalog:[\s\S]*?\['products', '商品管理'\][\s\S]*?\['categories', '分类管理'\][\s\S]*?\['imports', '批量导入'\][\s\S]*?\['pricing', '价格规则'\]/, '商品相关功能必须归入商品中心');
-assert.match(source, /trade:[\s\S]*?\['orders', '订单履约'\][\s\S]*?\['refunds', '退款售后'\]/, '履约和售后必须归入订单中心');
-assert.match(source, /data-go-panel/, '工作台待办卡必须能直接进入对应业务页面');
-assert.match(styles, /\.module-tabs/, '模块页签必须有清晰的当前状态样式');
-assert.match(styles, /button:focus-visible/, '键盘操作必须保留可见焦点');
+for (const page of Object.values(registry.pages)) {
+  const html = read(page.href);
+  assert.match(html, new RegExp(`<script>window.PAGE_NAME = '${page.id}';</script>`), `${page.href} 必须声明页面身份`);
+  assert.match(html, /id="adminSidebar"/, `${page.href} 必须使用共享侧栏`);
+  assert.match(html, /id="adminHeader"/, `${page.href} 必须使用共享页头`);
+  if (page.id === 'productReview') {
+    assert.match(html, /admin-page-registry\.js[\s\S]*admin-shell\.js[\s\S]*admin-product-review\.js/, `${page.href} 必须加载独立核对模块`);
+  } else if (page.id === 'productWorkflow') {
+    assert.match(html, /admin-page-registry\.js[\s\S]*admin-shell\.js[\s\S]*admin-product-data\.js[\s\S]*admin-product-workflow\.js/, `${page.href} 必须按顺序加载商品业务模块`);
+  } else {
+    assert.match(html, /admin-page-registry\.js[\s\S]*admin-forms\.js[\s\S]*admin-shell\.js[\s\S]*admin-tables\.js[\s\S]*admin-page-summary\.js[\s\S]*app\.js/, `${page.href} 必须按顺序加载共享模块`);
+  }
+  if (page.id === 'openingCheck') assert.match(html, /app\.js[\s\S]*admin-opening-check\.js/, '开店检查业务逻辑必须在独立模块中');
+  assert.equal((html.match(/<nav id="mainNav"/g) || []).length, 0, `${page.href} 不得重复维护侧栏导航`);
+  if (page.id === 'access') {
+    assert.match(html, /id="staffPage"[\s\S]*admin-staff-page\.js[\s\S]*app\.js/, '账号页应使用独立工作人员模块');
+    assert.doesNotMatch(html, /id="adminUserForm"|name="roleIds"/, '账号页不得恢复旧角色编号表单');
+  } else if (page.id === 'audit') {
+    assert.match(html, /id="auditTimeline"[\s\S]*admin-audit-timeline\.js[\s\S]*app\.js/, '操作记录应使用独立时间轴模块');
+    assert.doesNotMatch(html, /id="auditTable"/, '操作记录主界面不再显示内部编号表格');
+  } else if (!['productWorkflow', 'productReview'].includes(page.id)) {
+    assert.match(html, /<div class="hidden-forms"><\/div>/, `${page.href} 必须从共享模块装载通用编辑表单`);
+  }
+}
 
-console.log('admin module navigation contract: passed');
+assert.match(read('admin-shell.js'), /aria-current="page"/, '当前页面必须被标记');
+assert.match(read('admin-overview.js'), /href="\$\{task\.href\}"/, '工作台待办必须进入真实业务页面');
+assert.match(read('styles.css'), /button:focus-visible/, '键盘操作必须保留可见焦点');
+console.log('admin multi-page navigation contract: passed');
