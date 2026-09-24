@@ -1,0 +1,4 @@
+# 忽略项目根目录下的 backend 文件夹
+backend/
+# 忽略项目根目录下的 test 文件夹
+test/
