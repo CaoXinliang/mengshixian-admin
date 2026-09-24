@@ -4,9 +4,9 @@ const TRANSITIONS = {
   pending_payment: ['pending_confirmation', 'cancelled'],
   pending_confirmation: ['picking', 'cancelled'],
   picking: ['shipping', 'cancelled'],
-  shipping: ['completed'],
+  shipping: ['delivered'],
   delivered: ['completed'],
-  completed: ['shipping', 'cancelled'],
+  completed: [],
   cancelled: []
 };
 

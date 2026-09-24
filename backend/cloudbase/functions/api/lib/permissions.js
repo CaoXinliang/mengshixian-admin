@@ -1,3 +1,4 @@
+const { staffPermissions } = require('./staff-policy');
 const ROLE_PERMISSIONS = {
   super_admin: ['*'],
   admin_manager: ['admin.read', 'admin.write'],
@@ -21,6 +22,8 @@ function hasPermission(permissions, required) {
 }
 
 function collectPermissions(admin, roles) {
+  // New staff accounts have a fixed role; legacy direct grants cannot augment it.
+  if (admin.staffRole !== undefined) return staffPermissions(admin.staffRole);
   const direct = Array.isArray(admin.permissions) ? admin.permissions : [];
   const roleIds = new Set(admin.roleIds || []);
   const rolePermissions = (roles || [])

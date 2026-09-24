@@ -4,30 +4,6 @@
   const PAGE_SIZE = 15;
   const PAGE_WINDOW = 5;
 
-  // 页面 → eyebrow / panelTitle 映射
-  const PAGE_META = {
-    overview:   { eyebrow: '首页',     title: '今日经营概况' },
-    products:   { eyebrow: '商品中心', title: '商品管理' },
-    categories: { eyebrow: '商品中心', title: '分类管理' },
-    imports:    { eyebrow: '商品中心', title: '商品批量导入' },
-    pricing:    { eyebrow: '商品中心', title: '价格规则' },
-    orders:     { eyebrow: '订单中心', title: '订单履约' },
-    refunds:    { eyebrow: '订单中心', title: '退款售后' },
-    warehouses: { eyebrow: '库存配送', title: '仓库管理' },
-    areas:      { eyebrow: '库存配送', title: '配送区域' },
-    freight:    { eyebrow: '库存配送', title: '运费规则' },
-    inventory:  { eyebrow: '库存配送', title: '库存管理' },
-    slots:      { eyebrow: '库存配送', title: '配送时段' },
-    businesses: { eyebrow: '客户中心', title: '企业审核' },
-    users:      { eyebrow: '客户中心', title: '用户列表' },
-    banners:    { eyebrow: '内容运营', title: '轮播图' },
-    sections:   { eyebrow: '内容运营', title: '首页模块' },
-    media:      { eyebrow: '内容运营', title: '素材库' },
-    groups:     { eyebrow: '营销中心', title: '拼团活动' },
-    access:     { eyebrow: '系统管理', title: '账号与权限' },
-    audit:      { eyebrow: '系统管理', title: '操作记录' }
-  };
-
   // 页面 → 需要加载的数据 (stateKey → apiAction)
   const PAGE_LOADS = {
     overview: [
@@ -46,13 +22,13 @@
       ['categories', 'admin.categories.list'],
       ['media', 'admin.media.list']
     ],
-    categories: [['categories', 'admin.categories.list']],
+    categories: [['categories', 'admin.categories.list'], ['media', 'admin.media.list']],
     imports:    [['imports', 'admin.imports.list']],
-    pricing:    [['prices', 'admin.prices.list'], ['skus', 'admin.skus.list']],
+    pricing:    [['prices', 'admin.prices.list'], ['skus', 'admin.skus.list'], ['products', 'admin.products.list']],
     orders:     [['orders', 'admin.orders.list']],
-    refunds:    [['refunds', 'admin.refunds.list']],
+    refunds:    [['refunds', 'admin.refunds.list'], ['orders', 'admin.orders.list']],
     warehouses: [['warehouses', 'admin.warehouses.list']],
-    areas:      [['deliveryAreas', 'admin.deliveryAreas.list']],
+    areas:      [['deliveryAreas', 'admin.deliveryAreas.list'], ['warehouses', 'admin.warehouses.list']],
     freight:    [
       ['freightRules', 'admin.freightRules.list'],
       ['deliveryAreas', 'admin.deliveryAreas.list'],
@@ -69,25 +45,22 @@
       ['warehouses', 'admin.warehouses.list']
     ],
     businesses: [['businessApplications', 'admin.businessApplications.list']],
-    users:      [['users', 'admin.users.list']],
-    banners:    [['banners', 'admin.banners.list']],
-    sections:   [['sections', 'admin.homeSections.list']],
+    users:      [['users', 'admin.users.list'], ['organizations', 'admin.users.organizations']],
+    banners:    [['banners', 'admin.banners.list'], ['media', 'admin.media.list'], ['products', 'admin.products.list'], ['categories', 'admin.categories.list']],
+    sections:   [['sections', 'admin.homeSections.list'], ['media', 'admin.media.list'], ['products', 'admin.products.list'], ['categories', 'admin.categories.list']],
     media:      [['media', 'admin.media.list']],
-    groups:     [['groupCampaigns', 'admin.groupCampaigns.list'], ['skus', 'admin.skus.list']],
-    access: [
-      ['roles', 'admin.roles.list'],
-      ['adminUsers', 'admin.adminUsers.list']
-    ],
+    groups:     [['groupCampaigns', 'admin.groupCampaigns.list'], ['skus', 'admin.skus.list'], ['products', 'admin.products.list']],
+    access: [],
     audit: [['audit', 'admin.audit.list']]
   };
 
   const state = {
     admin: null, roles: [], adminUsers: [], categories: [], products: [], skus: [],
-    users: [], businessApplications: [], prices: [], warehouses: [], inventory: [],
+    users: [], organizations: [], businessApplications: [], prices: [], warehouses: [], inventory: [],
     deliveryAreas: [], freightRules: [], deliverySlots: [], orders: [], refunds: [],
     groupCampaigns: [], imports: [], media: [], productMedia: [], banners: [],
-    sections: [], audit: [],
-    pageMap: {}
+    sections: [], audit: [], pricingTargetNames: {},
+    pageMap: {}, loadStates: {}
   };
 
   const $ = (selector) => document.querySelector(selector);
@@ -110,7 +83,7 @@
   // ========== 状态中文映射 ==========
   const STATUS_MAP = {
     enabled: '启用', disabled: '停用', active: '生效', inactive: '未生效',
-    draft: '草稿', pending: '待处理',
+    draft: '草稿', pending: '待处理', pending_payment: '待支付',
     on_sale: '上架', off_sale: '下架',
     pending_confirmation: '待确认', picking: '拣货中', shipping: '运输中',
     delivered: '已送达', cancelled: '已取消', completed: '已完成',
@@ -120,6 +93,8 @@
     staged: '待审核', imported: '已入库',
     grouped: '已成团',
     unpaid: '未支付', paid: '已支付', refunded_payment: '已退款',
+    not_required: '无需在线支付', demo_not_required: '演示免支付',
+    offline_pending: '未收款', offline_partial: '部分收款', offline_paid: '已收齐',
     all: '全部端', miniapp: '小程序', web: '网页端',
     public: '公开', customer_type: '客户类型', level: '会员等级',
     organization: '企业', user: '指定用户',
@@ -230,6 +205,15 @@
   // ---------- 模态框 ----------
   let modalFormRef = null;
   function openModal(form, title) {
+    if (global.MengshixianCategoryGuide) global.MengshixianCategoryGuide.onOpen(form, state);
+    if (global.MengshixianContentGuide) global.MengshixianContentGuide.onOpen(form, state);
+    if (global.MengshixianOperationForms) global.MengshixianOperationForms.onOpen(form, state);
+    if (global.MengshixianPricingTargets) global.MengshixianPricingTargets.onOpen(form);
+    if (global.MengshixianProductFormGuide) global.MengshixianProductFormGuide.onOpen(form, state);
+    if (global.MengshixianCustomerGuide) global.MengshixianCustomerGuide.onOpen(form, state);
+    if (form.getAttribute('id') === 'mediaForm') {
+      $('#mediaVersionHint').textContent = '从电脑选择图片或视频（最大 24 MB）。后台会自动上传并登记；替换素材请使用“新建版本”，旧素材保留。';
+    }
     const overlay = $('#modalOverlay');
     const body = $('#modalBody');
     $('#modalTitle').textContent = title || '编辑';
@@ -278,148 +262,19 @@
     if (dao) dao.innerHTML = state.deliveryAreas.map((item) => `<option value="${escapeHtml(item._id)}">${escapeHtml(item.name)}</option>`).join('');
 
     // ---- overview ----
-    if (PAGE_NAME === 'overview') {
-      const pendingOrders = state.orders.filter((item) => item.status === 'pending_confirmation').length;
-      const pendingRefunds = state.refunds.filter((item) => item.status === 'requested').length;
-      const draftProducts = state.products.filter((item) => item.status !== 'on_sale').length;
-      const pendingBusinesses = state.businessApplications.filter((item) => item.status === 'pending').length;
-      $('#taskMetrics').innerHTML = [
-        ['orders', pendingOrders, '新订单待接单', '立即处理', pendingOrders > 0],
-        ['refunds', pendingRefunds, '退款申请待审核', '查看售后', pendingRefunds > 0],
-        ['products', draftProducts, '商品尚未上架', '检查商品', false],
-        ['businesses', pendingBusinesses, '企业申请待审核', '进入审核', pendingBusinesses > 0]
-      ].map(([target, count, label, action, urgent]) => {
-        const targetHref = `${target}.html`;
-        return `<a class="task-card${urgent ? ' is-urgent' : ''}" href="${targetHref}" style="text-decoration:none"><span class="task-label">${label}</span><strong>${count}</strong><span class="task-action">${action} <b>→</b></span></a>`;
-      }).join('');
-      $('#overviewDate').textContent = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-      $('#metrics').innerHTML = [
-        ['全部商品', state.products.length],
-        ['在售商品', state.products.filter((item) => item.status === 'on_sale').length],
-        ['商品规格', state.skus.length],
-        ['当前订单', state.orders.length]
-      ].map(([label, count]) => `<article class="metric"><span>${label}</span><strong>${count}</strong></article>`).join('');
-    }
+    if (PAGE_NAME === 'overview') global.MengshixianAdminOverview.render(state);
+    if (PAGE_NAME !== 'overview' && PAGE_NAME !== 'access') global.MengshixianAdminPageSummary.render(PAGE_NAME, state);
 
-    // ---- 批量导入 ----
-    paginateRows(state.imports, (item, seq) => {
-      const source = item.rawPayload || {}; const parsed = item.parsedPayload || {};
-      return `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.sourceRowNo)}</td><td>${escapeHtml(parsed.name || source.name)}</td><td>${escapeHtml(parsed.categoryName || source.category)}</td><td>${escapeHtml(parsed.specName || parsed.packageUnit)}</td><td>${badge(item.status)}</td><td class="col-action">${item.status === 'staged' || item.status === 'reviewing' || item.status === 'approved' ? `<button data-approve-import="${item._id}">审核入库</button>` : '—'}</td></tr>`;
-    }, 'importsTable', 6, 'imports');
+    global.MengshixianAdminTables.render(state, { escapeHtml, translateStatus, badge, formatDate, formatCents, formatRegionPreview, paginateRows });
 
-    // ---- 分类 ----
-    paginateRows(state.categories, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.name)}</td><td>${badge(item.status)}</td><td>${escapeHtml(item.sort)}</td><td class="col-action"><button data-edit-category="${item._id}">编辑</button></td></tr>`,
-      'categoriesTable', 4, 'categories');
-
-    // ---- 商品 ----
-    paginateRows(state.products, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.categoryName)}</td><td>${escapeHtml(item.frozenTemperature || '—')}</td><td>${badge(item.status)}</td><td class="col-action"><button data-edit-product="${item._id}">编辑</button>${item.status !== 'on_sale' ? ` <button data-publish-product="${item._id}">上架</button>` : ''}</td></tr>`,
-      'productsTable', 5, 'products');
-
-    // ---- SKU ----
-    paginateRows(state.skus, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.specName)}</td><td>${escapeHtml(item.packageUnit || '—')}</td><td>${escapeHtml(productNames.get(item.productId) || item.productId)}</td><td>${badge(item.status)}</td><td class="col-action"><button data-edit-sku="${item._id}">编辑</button>${item.status !== 'on_sale' ? ` <button data-publish-sku="${item._id}">上架</button>` : ` <button data-offsale-sku="${item._id}">下架</button>`}</td></tr>`,
-      'skusTable', 5, 'skus');
-
-    // ---- 商品媒体 ----
-    paginateRows(state.productMedia, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(productNames.get(item.productId) || item.productId)}${item.skuId ? `<br><small>${escapeHtml(skuNames.get(item.skuId) || item.skuId)}</small>` : ''}</td><td><code title="${escapeHtml(item.mediaAssetId)}">${escapeHtml(mediaNames.get(item.mediaAssetId) || item.mediaAssetId)}</code></td><td>${translateStatus(item.mediaType)}</td><td>${translateStatus(item.role)}</td><td>${badge(item.enabled === false ? 'disabled' : 'enabled')}</td><td class="col-action"><button data-edit-product-media="${item._id}">编辑</button></td></tr>`,
-      'productMediaTable', 6, 'productMedia');
-
-    // ---- 企业审核 ----
-    paginateRows(state.businessApplications, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.companyName)}<br><code>${escapeHtml(item.unifiedCode)}</code></td><td>${escapeHtml(item.contactName)} ${escapeHtml(item.contactPhoneMasked)}</td><td>${formatDate(item.submittedAt)}</td><td>${badge(item.status)}</td><td class="col-action">${item.status === 'pending' ? `<button data-approve-business="${item._id}">通过</button><button data-reject-business="${item._id}">驳回</button>` : '—'}</td></tr>`,
-      'businessApplicationsTable', 5, 'businessApplications');
-
-    // ---- 用户列表 ----
-    paginateRows(state.users, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td><code>${escapeHtml(item._id)}</code></td><td>${translateStatus(item.userType || 'c')}</td><td><code>${escapeHtml(item.organizationId || '—')}</code></td><td>${escapeHtml(item.priceLevel || '—')}</td><td class="col-action"><button data-edit-user-pricing="${item._id}">调整</button></td></tr>`,
-      'usersTable', 5, 'users');
-
-    // ---- 价格规则 ----
-    paginateRows(state.prices, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(skuNames.get(item.skuId) || item.skuId)}</td><td>${translateStatus(item.scopeType)} ${escapeHtml(item.scopeId || '')}</td><td>${formatCents(item.amountCent)}</td><td>${translateStatus(item.channel || 'all')}</td><td>${badge(item.status)}</td><td class="col-action"><button data-edit-price="${item._id}">编辑</button></td></tr>`,
-      'pricesTable', 6, 'prices');
-
-    // ---- 仓库 ----
-    const warehouseNames = new Map(state.warehouses.map((item) => [item._id, item.name]));
-    paginateRows(state.warehouses, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.name)}<br><code>${escapeHtml(item.code)}</code></td><td>${badge(item.status)}</td><td class="col-action"><button data-edit-warehouse="${item._id}">编辑</button></td></tr>`,
-      'warehousesTable', 3, 'warehouses');
-
-    // ---- 配送区域 ----
-    paginateRows(state.deliveryAreas, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.name)}</td><td class="delivery-area-regions-preview">${formatRegionPreview(item.regionCodes)}</td><td>${badge(item.status)}</td><td class="col-action"><button data-edit-delivery-area="${item._id}">编辑</button></td></tr>`,
-      'deliveryAreasTable', 4, 'deliveryAreas');
-
-    // ---- 运费规则 ----
-    paginateRows(state.freightRules, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.name)}</td><td>${escapeHtml(state.deliveryAreas.find((area) => area._id === item.deliveryAreaId)?.name || item.deliveryAreaId)}</td><td>${formatCents(item.baseFeeCent)}</td><td>${badge(item.status)}</td><td class="col-action"><button data-edit-freight="${item._id}">编辑</button></td></tr>`,
-      'freightRulesTable', 5, 'freightRules');
-
-    // ---- 配送时段 ----
-    paginateRows(state.deliverySlots, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.name)} ${escapeHtml(item.startTime)}-${escapeHtml(item.endTime)}</td><td>${escapeHtml(state.deliveryAreas.find((area) => area._id === item.deliveryAreaId)?.name || item.deliveryAreaId)}</td><td>${escapeHtml(warehouseNames.get(item.warehouseId) || item.warehouseId || '全部')}</td><td>${badge(item.status)}</td><td class="col-action"><button data-edit-delivery-slot="${item._id}">编辑</button></td></tr>`,
-      'deliverySlotsTable', 5, 'deliverySlots');
-
-    // ---- 库存 ----
-    paginateRows(state.inventory, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(warehouseNames.get(item.warehouseId) || item.warehouseId)}</td><td>${escapeHtml(skuNames.get(item.skuId) || item.skuId)}</td><td>${escapeHtml(item.onHand)}</td><td>${escapeHtml(item.reserved)}</td><td>${escapeHtml(item.available)}</td><td>${formatDate(item.updatedAt)}</td></tr>`,
-      'inventoryTable', 7, 'inventory');
-
-    // ---- 订单 ----
-    const orderActions = { pending_confirmation: ['picking', '开始拣货'], picking: ['shipping', '标记发货'], shipping: ['completed', '标记送达'], completed: ['shipping', '取消送达'] };
-    const filteredOrders = state.orders.filter((o) => { const kw = (window.__orderFilters && window.__orderFilters.keyword || '').trim(); const st = (window.__orderFilters && window.__orderFilters.status || ''); const matchKw = !kw || (o.userDisplay || '').includes(kw) || (o.orderNo || '').includes(kw); const matchSt = !st || o.status === st; return matchKw && matchSt; }); paginateRows(filteredOrders, (item, seq) => {
-      const action = orderActions[item.status];
-      return `<tr><td class="col-idx" style="text-align:center">${seq}</td><td><code>${escapeHtml(item.orderNo)}</code></td><td>${escapeHtml(item.userDisplay || '—')}</td><td>${badge(item.status)}</td><td>${formatCents(item.totalAmountCent)}</td><td>${badge(item.paymentStatus)}</td><td>${formatDate(item.createdAt)}</td><td class="col-action">${action ? `<button data-transition-order="${item._id}" data-next-status="${action[0]}">${action[1]}</button>` : '—'}</td></tr>`;
-    }, 'ordersTable', 6, 'orders');
-
-    // ---- 退款 ----
-    paginateRows(state.refunds, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td><code>${escapeHtml(item.refundNo)}</code></td><td><code>${escapeHtml(item.orderId)}</code></td><td>${formatCents(item.amountCent)}</td><td>${escapeHtml(item.reason || '—')}</td><td>${badge(item.status)}</td><td class="col-action">${item.status === 'requested' ? `<button data-approve-refund="${item._id}">审核通过</button><button data-reject-refund="${item._id}">驳回</button>` : '—'}</td></tr>`,
-      'refundsTable', 6, 'refunds');
-
-    // ---- 拼团 ----
-    paginateRows(state.groupCampaigns, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(skuNames.get(item.skuId) || item.skuId)}</td><td>${escapeHtml(item.groupSize)}</td><td>${formatCents(item.groupPriceCent)}</td><td>${badge(item.status)}</td><td class="col-action"><button data-edit-group-campaign="${item._id}">编辑</button></td></tr>`,
-      'groupCampaignsTable', 6, 'groupCampaigns');
-
-    // ---- 管理员 ----
-    const roleNames = new Map(state.roles.map((item) => [item._id, item.name]));
-    paginateRows(state.adminUsers, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.username)}<br>${escapeHtml(item.displayName)}</td><td>${escapeHtml((item.roleIds || []).map((id) => roleNames.get(id) || id).join('、'))}</td><td>${badge(item.status)}</td><td>${formatDate(item.lastLoginAt)}</td><td class="col-action"><button data-edit-admin-user="${item.id}">编辑</button></td></tr>`,
-      'adminUsersTable', 5, 'adminUsers');
-
-    // ---- 轮播图 ----
-    paginateRows(state.banners, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.title)}</td><td><code>${escapeHtml(item.mediaAssetId || '未设置')}</code></td><td>${translateStatus(item.jumpType)} ${escapeHtml(item.jumpTarget)}</td><td>${badge(item.enabled ? 'enabled' : 'disabled')}</td><td class="col-action"><button data-edit-banner="${item._id}">编辑</button></td></tr>`,
-      'bannersTable', 5, 'banners');
-
-    // ---- 首页模块 ----
-    paginateRows(state.sections, (item, seq) => {
-      const sectionLabel = ({ news: '活动头条', special: '特价专区', group: '拼团专场' })[item.moduleType] || '活动头条';
-      return `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(sectionLabel)}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.subtitle || '—')}</td><td><code>${escapeHtml(item.mediaAssetId || '未设置')}</code></td><td>${translateStatus(item.jumpType)} ${escapeHtml(item.jumpTarget)}</td><td>${badge(item.enabled ? 'enabled' : 'disabled')}</td><td class="col-action"><button data-edit-section="${item._id}">编辑</button></td></tr>`;
-    }, 'sectionsTable', 7, 'sections');
-
-    // ---- 素材 ----
-    paginateRows(state.media, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.name)}${item.temporary ? ' <span class="badge warn">临时</span>' : ''}</td><td>${translateStatus(item.type)}</td><td>${translateStatus(item.source)}</td><td>${escapeHtml(item.version)}</td><td><code title="${escapeHtml(item.fileId)}">${escapeHtml(item.fileId)}</code></td><td class="col-action"><button data-version-media="${item._id}">新建版本</button></td></tr>`,
-      'mediaTable', 6, 'media');
-
-    // ---- 操作记录 ----
-    paginateRows(state.audit, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${formatDate(item.createdAt)}</td><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.targetType)} / ${escapeHtml(item.targetId)}</td><td>${escapeHtml(item.actorId || 'system')}</td></tr>`,
-      'auditTable', 4, 'audit');
-
-    if (PAGE_NAME !== 'access') renderTableToolbars();
+    renderTableToolbars();
   }
 
   function renderTableToolbars() {
     const toolbarMap = [
       { tbodyId: 'importsTable',    addBtn: null },
       { tbodyId: 'categoriesTable', addBtn: { text: '+ 新增分类', form: '#categoryForm', title: '新增分类' } },
-      { tbodyId: 'productsTable',   addBtn: { text: '+ 新增商品', form: '#productForm', title: '新增商品' } },
+      { tbodyId: 'productsTable',   addBtn: null },
       { tbodyId: 'skusTable',       addBtn: { text: '+ 新增 SKU', form: '#skuForm', title: '新增 SKU' } },
       { tbodyId: 'productMediaTable', addBtn: { text: '+ 新增媒体关联', form: '#productMediaForm', title: '新增商品媒体关联' } },
       { tbodyId: 'businessApplicationsTable', addBtn: null },
@@ -433,10 +288,9 @@
       { tbodyId: 'ordersTable',     addBtn: null },
       { tbodyId: 'refundsTable',    addBtn: null },
       { tbodyId: 'groupCampaignsTable', addBtn: { text: '+ 新增拼团活动', form: '#groupCampaignForm', title: '新增拼团活动' } },
-      { tbodyId: 'adminUsersTable', addBtn: { text: '+ 新增管理员', form: '#adminUserForm', title: '新增管理员' } },
       { tbodyId: 'bannersTable',    addBtn: { text: '+ 新增轮播图', form: '#bannerForm', title: '新增轮播图' } },
       { tbodyId: 'sectionsTable',   addBtn: { text: '+ 新增首页模块', form: '#sectionForm', title: '新增首页模块' } },
-      { tbodyId: 'mediaTable',      addBtn: null },
+      { tbodyId: 'mediaTable',      addBtn: { text: '+ 上传素材', form: '#mediaForm', title: '上传新素材' } },
       { tbodyId: 'auditTable',      addBtn: null }
     ];
     toolbarMap.forEach(({ tbodyId, addBtn }) => {
@@ -494,10 +348,12 @@ async function refreshAll() {
     const loads = PAGE_LOADS[PAGE_NAME] || [];
     if (!loads.length) { render(); return; }
     showLoading('.panel.is-active');
+    loads.forEach(([key]) => { state.loadStates[key] = 'loading'; });
+    if (PAGE_NAME === 'overview') render();
     try {
 
     const tasks = await Promise.allSettled(
-      loads.map(([/*stateKey*/, action]) => call(action, { pageSize: 100 }).then((r) => ({ action, rows: r.rows || [] })))
+      loads.map(([/*stateKey*/, action]) => global.MengshixianAdminPaging.listAll(call, action).then((r) => ({ action, rows: r.rows })))
     );
 
     let firstFail = null;
@@ -505,11 +361,24 @@ async function refreshAll() {
       const [stateKey] = loads[idx];
       if (result.status === 'fulfilled') {
         state[stateKey] = result.value.rows;
+        state.loadStates[stateKey] = 'ready';
       } else {
         state[stateKey] = [];
+        state.loadStates[stateKey] = 'failed';
         if (!firstFail) firstFail = result.reason;
       }
     });
+
+    if (PAGE_NAME === 'pricing' && state.loadStates.prices === 'ready' && global.MengshixianPricingTargets) {
+      try {
+        state.pricingTargetNames = await global.MengshixianPricingTargets.loadNames(call, state.prices);
+        state.loadStates.pricingTargetNames = 'ready';
+      } catch (error) {
+        state.pricingTargetNames = {};
+        state.loadStates.pricingTargetNames = 'failed';
+        if (!firstFail) firstFail = error;
+      }
+    }
 
       render();
       if (firstFail) message(`后台数据加载失败：${firstFail.message || '请检查服务端响应。'}`, true);
@@ -534,28 +403,17 @@ async function refreshAll() {
   function fillCategory(id) { const item = state.categories.find((row) => row._id === id); if (!item) return; const form = $('#categoryForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.imageMediaId.value = item.imageMediaId || ''; form.elements.sort.value = item.sort || 0; form.elements.status.value = item.status; openModal(form, '编辑分类'); }
   function fillBanner(id) { const item = state.banners.find((row) => row._id === id); if (!item) return; const form = $('#bannerForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.title.value = item.title; form.elements.mediaAssetId.value = item.mediaAssetId || ''; form.elements.jumpType.value = item.jumpType || 'none'; form.elements.jumpTarget.value = item.jumpTarget || ''; form.elements.sort.value = item.sort || 0; form.elements.enabled.checked = item.enabled !== false; openModal(form, '编辑轮播图'); }
   function fillSection(id) { const item = state.sections.find((row) => row._id === id); if (!item) return; const form = $('#sectionForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.moduleType.value = item.moduleType || 'news'; form.elements.title.value = item.title; form.elements.subtitle.value = item.subtitle || ''; form.elements.linkText.value = item.linkText || '更多'; form.elements.mediaAssetId.value = item.mediaAssetId || ''; form.elements.jumpType.value = item.jumpType || 'none'; form.elements.jumpTarget.value = item.jumpTarget || ''; form.elements.sort.value = item.sort || 0; form.elements.enabled.checked = item.enabled !== false; openModal(form, '编辑首页模块'); }
-  function startMediaVersion(id) { const item = state.media.find((row) => row._id === id); if (!item) return; const form = $('#mediaForm'); form.reset(); form.elements.replacesMediaAssetId.value = item._id; form.elements.name.value = `${item.name} v${Number(item.version || 1) + 1}`; form.elements.type.value = item.type || 'image'; form.elements.source.value = item.source || 'admin_upload'; form.elements.temporary.checked = item.temporary === true; form.elements.mimeType.value = item.mimeType || ''; form.elements.sizeBytes.value = 0; form.elements.startAt.value = String(item.startAt || '').slice(0, 16); form.elements.endAt.value = String(item.endAt || '').slice(0, 16); const targetPlatforms = item.targetPlatforms && item.targetPlatforms.length ? item.targetPlatforms : ['miniapp', 'web']; form.querySelectorAll('input[name="targetPlatforms"]').forEach((input) => { input.checked = targetPlatforms.includes(input.value); }); $('#mediaVersionHint').textContent = `正在为"${item.name}"创建版本 ${Number(item.version || 1) + 1}；请填写新的 CloudBase 文件 ID，旧素材会保留。`; openModal(form, '新建素材版本'); }
+  function startMediaVersion(id) { const item = state.media.find((row) => row._id === id); if (!item) return; const form = $('#mediaForm'); form.reset(); form.elements.replacesMediaAssetId.value = item._id; form.elements.name.value = `${item.name} v${Number(item.version || 1) + 1}`; form.elements.type.value = item.type || 'image'; form.elements.source.value = item.source || 'admin_upload'; form.elements.temporary.checked = item.temporary === true; form.elements.startAt.value = String(item.startAt || '').slice(0, 16); form.elements.endAt.value = String(item.endAt || '').slice(0, 16); const targetPlatforms = item.targetPlatforms && item.targetPlatforms.length ? item.targetPlatforms : ['miniapp', 'web']; form.querySelectorAll('input[name="targetPlatforms"]').forEach((input) => { input.checked = targetPlatforms.includes(input.value); }); openModal(form, '新建素材版本'); }
   function fillProduct(id) { const item = state.products.find((row) => row._id === id); if (!item) return; const form = $('#productForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.categoryId.value = item.categoryId; form.elements.brand.value = item.brand || ''; form.elements.origin.value = item.origin || ''; form.elements.frozenTemperature.value = item.frozenTemperature || '-18℃'; form.elements.coverMediaId.value = item.coverMediaId || ''; form.elements.sort.value = item.sort || 0; openModal(form, '编辑商品'); }
   function fillProductMedia(id) { const item = state.productMedia.find((row) => row._id === id); if (!item) return; const form = $('#productMediaForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.productId.value = item.productId; form.elements.skuId.value = item.skuId || ''; form.elements.mediaAssetId.value = item.mediaAssetId; form.elements.mediaType.value = item.mediaType; form.elements.role.value = item.role || 'detail'; form.elements.sort.value = item.sort || 0; form.elements.enabled.checked = item.enabled !== false; openModal(form, '编辑商品媒体'); }
   function fillSku(id) { const item = state.skus.find((row) => row._id === id); if (!item) return; const form = $('#skuForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.productId.value = item.productId; form.elements.specName.value = item.specName; form.elements.packageUnit.value = item.packageUnit || ''; form.elements.netWeight.value = item.netWeight || ''; form.elements.weightUnit.value = item.weightUnit || ''; form.elements.piecesPerCase.value = item.piecesPerCase || 0; form.elements.barcode.value = item.barcode || ''; form.elements.status.value = item.status; openModal(form, '编辑 SKU'); }
   function fillUserPricing(id) { const item = state.users.find((row) => row._id === id); if (!item) return; const form = $('#userPricingForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.userType.value = item.userType || 'c'; form.elements.organizationId.value = item.organizationId || ''; form.elements.priceLevel.value = item.priceLevel || ''; openModal(form, '调整用户身份'); }
-  function fillPrice(id) { const item = state.prices.find((row) => row._id === id); if (!item) return; const form = $('#priceForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.skuId.value = item.skuId; form.elements.scopeType.value = item.scopeType; form.elements.scopeId.value = item.scopeId || ''; form.elements.channel.value = item.channel || 'all'; form.elements.amountCent.value = item.amountCent; form.elements.priority.value = item.priority || 0; form.elements.status.value = item.status; openModal(form, '编辑价格规则'); }
+  function fillPrice(id) { const item = state.prices.find((row) => row._id === id); if (!item) return; const form = $('#priceForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.skuId.value = item.skuId; form.elements.scopeType.value = item.scopeType; form.elements.scopeId.value = item.scopeId || ''; form.elements.scopeId.dataset.savedValue = item.scopeId || ''; form.elements.channel.value = item.channel || 'all'; form.elements.amountCent.value = item.amountCent; form.elements.priority.value = item.priority || 0; form.elements.status.value = item.status; openModal(form, '编辑价格规则'); }
   function fillWarehouse(id) { const item = state.warehouses.find((row) => row._id === id); if (!item) return; const form = $('#warehouseForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.code.value = item.code; form.elements.name.value = item.name; form.elements.address.value = item.address || ''; form.elements.status.value = item.status; form.elements.sort.value = item.sort || 0; openModal(form, '编辑仓库'); }
   function fillDeliveryArea(id) { const item = state.deliveryAreas.find((row) => row._id === id); if (!item) return; const form = $('#deliveryAreaForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.regionCodes.value = (item.regionCodes || []).join('\n'); const namesTa = form.querySelector('textarea[name="regionNames"]'); if (namesTa) namesTa.value = (item.regionNames || []).join('\n'); form.elements.warehouseIds.value = (item.warehouseIds || []).join('\n'); form.elements.status.value = item.status; openModal(form, '编辑配送区域'); setTimeout(function(){ if(form.__syncRegionCodes) form.__syncRegionCodes(); }, 50); }
   function fillFreight(id) { const item = state.freightRules.find((row) => row._id === id); if (!item) return; const form = $('#freightForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.deliveryAreaId.value = item.deliveryAreaId; form.elements.warehouseId.value = item.warehouseId || ''; form.elements.baseFeeCent.value = item.baseFeeCent || 0; form.elements.additionalFeeCent.value = item.additionalFeeCent || 0; form.elements.freeThresholdCent.value = item.freeThresholdCent || 0; form.elements.status.value = item.status; openModal(form, '编辑运费规则'); }
   function fillDeliverySlot(id) { const item = state.deliverySlots.find((row) => row._id === id); if (!item) return; const form = $('#deliverySlotForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.deliveryAreaId.value = item.deliveryAreaId; form.elements.warehouseId.value = item.warehouseId || ''; form.elements.startTime.value = item.startTime; form.elements.endTime.value = item.endTime; form.elements.status.value = item.status; openModal(form, '编辑配送时段'); }
   function fillGroupCampaign(id) { const item = state.groupCampaigns.find((row) => row._id === id); if (!item) return; const form = $('#groupCampaignForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.title.value = item.title; form.elements.skuId.value = item.skuId; form.elements.groupSize.value = item.groupSize; form.elements.durationMinutes.value = item.durationMinutes; form.elements.groupPriceCent.value = item.groupPriceCent; form.elements.targetUserType.value = item.targetUserType || 'all'; form.elements.status.value = item.status; openModal(form, '编辑拼团活动'); }
-  function fillAdminUser(id) { const item = state.adminUsers.find((row) => row.id === id); if (!item) return; const form = $('#adminUserForm'); form.elements.id.value = item.id; form.dataset.editingId = id; form.elements.username.value = item.username; form.elements.displayName.value = item.displayName; form.elements.password.value = ''; form.elements.roleIds.value = (item.roleIds || []).join('\n'); form.elements.status.value = item.status; openModal(form, '编辑管理员'); }
-
-  async function stageFile(file) {
-    const text = await file.text();
-    const parsed = JSON.parse(text);
-    if (!Array.isArray(parsed.rows) || !parsed.rows.length) throw new Error('草稿文件中没有 rows 数据。');
-    for (let index = 0; index < parsed.rows.length; index += 50) {
-      await call('admin.imports.stage', { sourceFile: file.name, rows: parsed.rows.slice(index, index + 50) });
-      message(`已写入 ${Math.min(index + 50, parsed.rows.length)} / ${parsed.rows.length} 条商品草稿。`);
-    }
-  }
 
   // ---------- 事件绑定 ----------
   function bind() {
@@ -576,89 +434,87 @@ async function refreshAll() {
       });
     }
 
-    $('#logoutButton').addEventListener('click', async () => {
-      try { await call('admin.logout', {}); } catch (_) {}
-      api.setToken('');
-      global.location.replace('login.html');
-    });
+    if (global.MengshixianAdminAccount) global.MengshixianAdminAccount.bindLogout({ call, clearSession: () => api.setToken(''), message });
 
-    const stagingFile = document.getElementById('stagingFile');
-    if (stagingFile) stagingFile.addEventListener('change', async (event) => {
-      const file = event.target.files[0]; if (!file) return;
-      try { await stageFile(file); await refreshAll(); message('商品草稿已写入审核队列。'); }
-      catch (error) { message(error.message || '导入失败。', true); } finally { event.target.value = ''; }
-    });
-
-    const activateImportsButton = document.getElementById('activateImportsButton');
-    if (activateImportsButton) activateImportsButton.addEventListener('click', async (event) => {
-      const button = event.currentTarget;
-      const ids = state.imports.map((item) => item._id);
-      if (!ids.length) return message('当前没有可处理的商品草稿。', true);
-      button.disabled = true;
-      try {
-        let activated = 0;
-        for (let index = 0; index < ids.length; index += 10) {
-          const result = await call('admin.imports.activateBatch', { ids: ids.slice(index, index + 10) });
-          activated += (result.activated || []).length;
-          if ((result.failed || []).length) throw new Error(`第 ${index + 1} 至 ${Math.min(index + 10, ids.length)} 条中有 ${(result.failed || []).length} 条启用失败，可再次点击继续。`);
-          message(`已审核并启用 ${Math.min(index + 10, ids.length)} / ${ids.length} 条商品草稿。`);
-        }
-        await refreshAll();
-        message(`批量处理完成：${activated} 条商品及 SKU 已启用。`);
-      } catch (error) { await refreshAll(); message(error.message || '批量处理失败，可再次点击继续。', true); }
-      finally { button.disabled = false; }
-    });
+    if (PAGE_NAME === 'imports' && global.MengshixianImportWorkflow) {
+      global.MengshixianImportWorkflow.start({ call, refresh: refreshAll, message });
+    }
 
     // 表单 submit
     const catForm = document.getElementById('categoryForm');
-    if (catForm) catForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.categories.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), imageMediaId: form.get('imageMediaId'), sort: Number(form.get('sort')), status: form.get('status') }); closeModal(); await refreshAll(); message('分类已保存。'); } catch (error) { message(error.message, true); } });
+    if (catForm) catForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.categories.find((row) => row._id === id); const status = form.get('status'); if (status === 'enabled' && (!existing || existing.status !== 'enabled') && !global.MengshixianAdminOperationsConfirm.ask('contentEnable', { title: form.get('name'), impact: '启用后该分类及其下商品可能对顾客可见。' })) return; await call('admin.categories.upsert', { id, name: form.get('name'), imageMediaId: form.get('imageMediaId'), sort: Number(form.get('sort')), status }); closeModal(); await refreshAll(); message('分类已保存。'); } catch (error) { message(error.message, true); } });
 
     const bannerForm = document.getElementById('bannerForm');
-    if (bannerForm) bannerForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.banners.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), title: form.get('title'), mediaAssetId: form.get('mediaAssetId'), jumpType: form.get('jumpType'), jumpTarget: form.get('jumpTarget'), sort: Number(form.get('sort')), enabled: form.get('enabled') === 'on' }); closeModal(); await refreshAll(); message('轮播图配置已保存。'); } catch (error) { message(error.message, true); } });
+    if (bannerForm) bannerForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.banners.find((row) => row._id === id); const enabled = form.get('enabled') === 'on'; if (enabled && (!existing || existing.enabled === false) && !global.MengshixianAdminOperationsConfirm.ask('contentEnable', { title: form.get('title'), impact: '启用后顾客可能在首页看到此轮播图。' })) return; await call('admin.banners.upsert', { id, title: form.get('title'), mediaAssetId: form.get('mediaAssetId'), jumpType: form.get('jumpType'), jumpTarget: form.get('jumpTarget'), sort: Number(form.get('sort')), enabled }); closeModal(); await refreshAll(); message('轮播图配置已保存。'); } catch (error) { message(error.message, true); } });
 
     const sectionForm = document.getElementById('sectionForm');
-    if (sectionForm) sectionForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.homeSections.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), moduleType: form.get('moduleType'), title: form.get('title'), subtitle: form.get('subtitle'), linkText: form.get('linkText'), mediaAssetId: form.get('mediaAssetId'), jumpType: form.get('jumpType'), jumpTarget: form.get('jumpTarget'), sort: Number(form.get('sort')), enabled: form.get('enabled') === 'on' }); closeModal(); await refreshAll(); message('首页模块已保存。'); } catch (error) { message(error.message, true); } });
+    if (sectionForm) sectionForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.sections.find((row) => row._id === id); const enabled = form.get('enabled') === 'on'; if (enabled && (!existing || existing.enabled === false) && !global.MengshixianAdminOperationsConfirm.ask('contentEnable', { title: form.get('title'), impact: '启用后顾客可能在首页看到此首页模块。' })) return; await call('admin.homeSections.upsert', { id, moduleType: form.get('moduleType'), title: form.get('title'), subtitle: form.get('subtitle'), linkText: form.get('linkText'), mediaAssetId: form.get('mediaAssetId'), jumpType: form.get('jumpType'), jumpTarget: form.get('jumpTarget'), sort: Number(form.get('sort')), enabled }); closeModal(); await refreshAll(); message('首页模块已保存。'); } catch (error) { message(error.message, true); } });
 
     const productForm = document.getElementById('productForm');
-    if (productForm) productForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.products.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), categoryId: form.get('categoryId'), brand: form.get('brand'), origin: form.get('origin'), frozenTemperature: form.get('frozenTemperature'), coverMediaId: form.get('coverMediaId'), sort: Number(form.get('sort')) }); closeModal(); await refreshAll(); message('商品信息已保存。'); } catch (error) { message(error.message, true); } });
+    if (productForm) productForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.products.find((row) => row._id === id) || {}; if (existing.status === 'on_sale' && !global.confirm(`商品「${existing.name || form.get('name')}」正在销售，保存后顾客可见资料可能立即变化。继续保存？`)) return; await call('admin.products.upsert', { id, spuCode: existing.spuCode || '', name: form.get('name'), subtitle: existing.subtitle || '', categoryId: form.get('categoryId'), brand: form.get('brand'), origin: form.get('origin'), storageType: existing.storageType || 'frozen', frozenTemperature: form.get('frozenTemperature'), shelfLifeDays: existing.shelfLifeDays || 0, description: existing.description || '', coverMediaId: form.get('coverMediaId'), audienceType: existing.audienceType || 'all', sort: Number(form.get('sort')) }); closeModal(); await refreshAll(); message('商品信息已保存。'); } catch (error) { message(error.message, true); } });
 
     const productMediaForm = document.getElementById('productMediaForm');
-    if (productMediaForm) productMediaForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.productMedia.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), productId: form.get('productId'), skuId: form.get('skuId'), mediaAssetId: form.get('mediaAssetId'), mediaType: form.get('mediaType'), role: form.get('role'), sort: Number(form.get('sort')), enabled: form.get('enabled') === 'on' }); closeModal(); await refreshAll(); message('商品媒体关联已保存。'); } catch (error) { message(error.message, true); } });
+    if (productMediaForm) productMediaForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.productMedia.find((row) => row._id === id); const enabled = form.get('enabled') === 'on'; if (enabled && (!existing || existing.enabled === false) && !global.MengshixianAdminOperationsConfirm.ask('contentEnable', { title: (state.media.find((row) => row._id === form.get('mediaAssetId')) || {}).name || '该素材', impact: '启用后此素材可能立即出现在商品详情或作为规格图展示。' })) return; await call('admin.productMedia.upsert', { id, productId: form.get('productId'), skuId: form.get('skuId'), mediaAssetId: form.get('mediaAssetId'), mediaType: form.get('mediaType'), role: form.get('role'), sort: Number(form.get('sort')), enabled }); closeModal(); await refreshAll(); message('商品媒体关联已保存。'); } catch (error) { message(error.message, true); } });
 
     const skuForm = document.getElementById('skuForm');
-    if (skuForm) skuForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.skus.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), productId: form.get('productId'), specName: form.get('specName'), packageUnit: form.get('packageUnit'), netWeight: form.get('netWeight'), weightUnit: form.get('weightUnit'), piecesPerCase: Number(form.get('piecesPerCase')), barcode: form.get('barcode'), status: form.get('status') }); closeModal(); await refreshAll(); message('SKU 信息已保存。'); } catch (error) { message(error.message, true); } });
+    if (skuForm) skuForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.skus.find((row) => row._id === id); const status = form.get('status'); const record = existing || { specName: form.get('specName') }; if (status === 'on_sale' && (!existing || existing.status !== 'on_sale') && !global.MengshixianAdminOperationsConfirm.ask('skuPublish', record)) return; if (status === 'off_sale' && existing && existing.status === 'on_sale' && !global.MengshixianAdminOperationsConfirm.ask('skuOffsale', record)) return; await call('admin.skus.upsert', { id, productId: form.get('productId'), specName: form.get('specName'), packageUnit: form.get('packageUnit'), netWeight: form.get('netWeight'), weightUnit: form.get('weightUnit'), piecesPerCase: Number(form.get('piecesPerCase')), barcode: form.get('barcode'), status }); closeModal(); await refreshAll(); message('SKU 信息已保存。'); } catch (error) { message(error.message, true); } });
 
     const userPricingForm = document.getElementById('userPricingForm');
-    if (userPricingForm) userPricingForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.users.setPricingProfile', { id: event.currentTarget.dataset.editingId || form.get('id'), userType: form.get('userType'), organizationId: form.get('organizationId'), priceLevel: form.get('priceLevel') }); closeModal(); await refreshAll(); message('用户身份与价格等级已保存。'); } catch (error) { message(error.message, true); } });
+    if (userPricingForm) userPricingForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { if (!global.MengshixianCustomerGuide || !global.MengshixianCustomerGuide.confirm(event.currentTarget, state)) return; await call('admin.users.setPricingProfile', { id: event.currentTarget.dataset.editingId || form.get('id'), userType: form.get('userType'), organizationId: form.get('organizationId') || '', priceLevel: form.get('priceLevel') }); closeModal(); await refreshAll(); message('用户身份与价格等级已保存。'); } catch (error) { message(error.message, true); } });
 
     const priceForm = document.getElementById('priceForm');
-    if (priceForm) priceForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.prices.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), skuId: form.get('skuId'), scopeType: form.get('scopeType'), scopeId: form.get('scopeId') || '', channel: form.get('channel'), amountCent: Number(form.get('amountCent')), priority: Number(form.get('priority')), status: form.get('status') }); closeModal(); await refreshAll(); message('价格规则已保存。'); } catch (error) { message(error.message, true); } });
+    if (priceForm) priceForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      try {
+        const amounts = global.MengshixianOperationForms.values(event.currentTarget);
+        if (!global.MengshixianOperationForms.ask(event.currentTarget, state)) return;
+        await call('admin.prices.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), skuId: form.get('skuId'), scopeType: form.get('scopeType'), scopeId: form.get('scopeId') || '', channel: form.get('channel'), amountCent: amounts.amountCent, priority: Number(form.get('priority')), status: form.get('status') });
+        closeModal(); await refreshAll(); message('价格规则已保存。');
+      } catch (error) { message(error.message, true); }
+    });
 
     const warehouseForm = document.getElementById('warehouseForm');
-    if (warehouseForm) warehouseForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.warehouses.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), code: form.get('code'), name: form.get('name'), address: form.get('address'), sort: Number(form.get('sort')), status: form.get('status') }); closeModal(); await refreshAll(); message('仓库已保存。'); } catch (error) { message(error.message, true); } });
+    if (warehouseForm) warehouseForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.warehouses.find((row) => row._id === id); const status = form.get('status'); if (status === 'enabled' && (!existing || existing.status !== 'enabled') && !global.MengshixianAdminOperationsConfirm.ask('contentEnable', { title: form.get('name'), impact: '启用后该仓库将参与库存与配送匹配。' })) return; await call('admin.warehouses.upsert', { id, code: form.get('code'), name: form.get('name'), address: form.get('address'), sort: Number(form.get('sort')), status }); closeModal(); await refreshAll(); message('仓库已保存。'); } catch (error) { message(error.message, true); } });
 
     const deliveryAreaForm = document.getElementById('deliveryAreaForm');
-    if (deliveryAreaForm) deliveryAreaForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.deliveryAreas.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), regionCodes: splitLines(form.get('regionCodes')), regionNames: splitLines(form.get('regionNames')), warehouseIds: splitLines(form.get('warehouseIds')), status: form.get('status') }); closeModal(); await refreshAll(); message('配送区域已保存。'); } catch (error) { message(error.message, true); } });
+    if (deliveryAreaForm) deliveryAreaForm.addEventListener('submit', async (event) => { event.preventDefault(); if (!window.MengshixianOperationForms.ask(event.currentTarget, state)) return; const form = new FormData(event.currentTarget); try { await call('admin.deliveryAreas.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), regionCodes: splitLines(form.get('regionCodes')), regionNames: splitLines(form.get('regionNames')), warehouseIds: splitLines(form.get('warehouseIds')), status: form.get('status') }); closeModal(); await refreshAll(); message('配送区域已保存。'); } catch (error) { message(error.message, true); } });
 
     const freightForm = document.getElementById('freightForm');
-    if (freightForm) freightForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.freightRules.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), deliveryAreaId: form.get('deliveryAreaId'), warehouseId: form.get('warehouseId'), baseFeeCent: Number(form.get('baseFeeCent')), additionalFeeCent: Number(form.get('additionalFeeCent')), freeThresholdCent: Number(form.get('freeThresholdCent')), status: form.get('status') }); closeModal(); await refreshAll(); message('运费规则已保存。'); } catch (error) { message(error.message, true); } });
+    if (freightForm) freightForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      try {
+        const amounts = global.MengshixianOperationForms.values(event.currentTarget);
+        if (!global.MengshixianOperationForms.ask(event.currentTarget, state)) return;
+        await call('admin.freightRules.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), deliveryAreaId: form.get('deliveryAreaId'), warehouseId: form.get('warehouseId'), ...amounts, status: form.get('status') });
+        closeModal(); await refreshAll(); message('运费规则已保存。');
+      } catch (error) { message(error.message, true); }
+    });
 
     const deliverySlotForm = document.getElementById('deliverySlotForm');
-    if (deliverySlotForm) deliverySlotForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.deliverySlots.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), deliveryAreaId: form.get('deliveryAreaId'), warehouseId: form.get('warehouseId') || '', startTime: form.get('startTime'), endTime: form.get('endTime'), status: form.get('status') }); closeModal(); await refreshAll(); message('配送时段已保存。'); } catch (error) { message(error.message, true); } });
+    if (deliverySlotForm) deliverySlotForm.addEventListener('submit', async (event) => { event.preventDefault(); if (!window.MengshixianOperationForms.ask(event.currentTarget, state)) return; const form = new FormData(event.currentTarget); try { await call('admin.deliverySlots.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), deliveryAreaId: form.get('deliveryAreaId'), warehouseId: form.get('warehouseId') || '', startTime: form.get('startTime'), endTime: form.get('endTime'), status: form.get('status') }); closeModal(); await refreshAll(); message('配送时段已保存。'); } catch (error) { message(error.message, true); } });
   const inventoryForm = document.getElementById('inventoryForm');
-  if (inventoryForm) inventoryForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.inventory.adjust', { warehouseId: form.get('warehouseId'), skuId: form.get('skuId'), change: Number(form.get('change')), reason: form.get('reason'), idempotencyKey: newIdempotencyKey() }); event.currentTarget.reset(); closeModal(); await refreshAll(); message('库存已调整并写入流水。'); } catch (error) { message(error.message, true); } });
+  if (inventoryForm) inventoryForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(inventoryForm); try { await call('admin.inventory.adjust', { warehouseId: form.get('warehouseId'), skuId: form.get('skuId'), change: Number(form.get('change')), reason: form.get('reason'), idempotencyKey: newIdempotencyKey() }); inventoryForm.reset(); closeModal(); await refreshAll(); message('库存已调整并写入流水。'); } catch (error) { message(error.message, true); } });
 
     const groupCampaignForm = document.getElementById('groupCampaignForm');
-    if (groupCampaignForm) groupCampaignForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await call('admin.groupCampaigns.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), title: form.get('title'), skuId: form.get('skuId'), groupSize: Number(form.get('groupSize')), durationMinutes: Number(form.get('durationMinutes')), groupPriceCent: Number(form.get('groupPriceCent')), targetUserType: form.get('targetUserType'), status: form.get('status') }); closeModal(); await refreshAll(); message('拼团活动已保存。'); } catch (error) { message(error.message, true); } });
+    if (groupCampaignForm) groupCampaignForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      try {
+        const amounts = global.MengshixianOperationForms.values(event.currentTarget);
+        if (!global.MengshixianOperationForms.ask(event.currentTarget, state)) return;
+        await call('admin.groupCampaigns.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), title: form.get('title'), skuId: form.get('skuId'), groupSize: Number(form.get('groupSize')), durationMinutes: Number(form.get('durationMinutes')), groupPriceCent: amounts.groupPriceCent, targetUserType: form.get('targetUserType'), status: form.get('status') });
+        closeModal(); await refreshAll(); message('拼团活动已保存。');
+      } catch (error) { message(error.message, true); }
+    });
 
-    const adminUserForm = document.getElementById('adminUserForm');
-    if (adminUserForm) adminUserForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const payload = { id: event.currentTarget.dataset.editingId || form.get('id'), username: form.get('username'), displayName: form.get('displayName'), roleIds: splitLines(form.get('roleIds')), status: form.get('status') }; if (form.get('password')) payload.password = form.get('password'); closeModal(); await call('admin.adminUsers.upsert', payload); await refreshAll(); message('管理员账号已保存。'); } catch (error) { message(error.message || '操作失败。', true); } });
 
     const mediaSearch = document.getElementById('mediaSearch');
-    if (mediaSearch) mediaSearch.addEventListener('input', (event) => { const term = event.target.value.trim().toLowerCase(); document.querySelectorAll('#mediaTable tbody tr').forEach((tr) => { tr.style.display = !term || tr.textContent.toLowerCase().includes(term) ? '' : 'none'; }); });
+    if (mediaSearch) mediaSearch.addEventListener('input', (event) => { global.__mediaKeyword = event.target.value.trim().toLowerCase(); state.pageMap.media = 1; render(); });
 
     const mediaForm = document.getElementById('mediaForm');
-    if (mediaForm) mediaForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const replacesMediaAssetId = form.get('replacesMediaAssetId'); const type = form.get('type'); const selectedFile = form.get('uploadFile'); let fileId = form.get('fileId'); let mimeType = form.get('mimeType'); let sizeBytes = Number(form.get('sizeBytes')); try { if (selectedFile && selectedFile.size) { const uploaded = await api.uploadMediaFile(selectedFile, type); fileId = uploaded.fileId; mimeType = uploaded.mimeType; sizeBytes = uploaded.sizeBytes; } if (!fileId) throw new Error('请选择本地文件，或填写已有的 CloudBase 文件 ID。'); const payload = { name: form.get('name'), type, source: form.get('source'), temporary: form.get('temporary') === 'on', targetPlatforms: form.getAll('targetPlatforms'), startAt: form.get('startAt'), endAt: form.get('endAt'), fileId, mimeType, sizeBytes }; await call(replacesMediaAssetId ? 'admin.media.createVersion' : 'admin.media.upsert', { ...payload, replacesMediaAssetId }); closeModal(); event.currentTarget.reset(); $('#mediaVersionHint').textContent = '素材已通过管理员会话上传并登记；替换文件请使用右侧"新建版本"，旧素材不会被覆盖。'; await refreshAll(); message(replacesMediaAssetId ? '素材新版本已登记。' : '素材已上传并登记。'); } catch (error) { message(error.message || '素材上传登记失败。', true); } });
+    if (mediaForm && global.MengshixianMediaGuide) global.MengshixianMediaGuide.mount({ api, call, refresh: refreshAll, message, closeModal, assets: () => state.media });
 
     // 全局点击代理（page 按钮、add 按钮、row 操作按钮）
     document.addEventListener('click', async (event) => {
@@ -678,6 +534,7 @@ async function refreshAll() {
           form.reset();
           delete form.dataset.editingId;
           if (form.elements.id) form.elements.id.value = '';
+          if (['bannerForm', 'sectionForm'].includes(form.getAttribute('id')) && form.elements.enabled) form.elements.enabled.checked = false;
           openModal(form, addBtn.dataset.addTitle || '新增');
         }
         return;
@@ -696,7 +553,6 @@ async function refreshAll() {
       const editFreight = target.closest('[data-edit-freight]');
       const editDeliverySlot = target.closest('[data-edit-delivery-slot]');
       const editGroupCampaign = target.closest('[data-edit-group-campaign]');
-      const editAdminUser = target.closest('[data-edit-admin-user]');
       const approve = target.closest('[data-approve-import]');
       const approveBusiness = target.closest('[data-approve-business]');
       const rejectBusiness = target.closest('[data-reject-business]');
@@ -721,18 +577,17 @@ async function refreshAll() {
       if (editFreight) return fillFreight(editFreight.dataset.editFreight);
       if (editDeliverySlot) return fillDeliverySlot(editDeliverySlot.dataset.editDeliverySlot);
       if (editGroupCampaign) return fillGroupCampaign(editGroupCampaign.dataset.editGroupCampaign);
-      if (editAdminUser) return fillAdminUser(editAdminUser.dataset.editAdminUser);
 
       try {
-        if (approve) { await call('admin.imports.approve', { id: approve.dataset.approveImport }); await refreshAll(); message('草稿已生成商品和 SKU 草稿。'); }
-        if (approveBusiness) { await call('admin.businessApplications.review', { id: approveBusiness.dataset.approveBusiness, decision: 'approved' }); await refreshAll(); message('企业申请已通过。'); }
-        if (rejectBusiness) { await call('admin.businessApplications.review', { id: rejectBusiness.dataset.rejectBusiness, decision: 'rejected' }); await refreshAll(); message('企业申请已驳回。'); }
-        if (approveRefund) { await call('admin.refunds.review', { id: approveRefund.dataset.approveRefund, decision: 'approved' }); await refreshAll(); message('退款已审核通过。'); }
-        if (rejectRefund) { await call('admin.refunds.review', { id: rejectRefund.dataset.rejectRefund, decision: 'rejected' }); await refreshAll(); message('退款申请已驳回。'); }
-        if (publish) { await call('admin.products.setStatus', { id: publish.dataset.publishProduct, status: 'on_sale' }); await refreshAll(); message('商品已上架。'); }
-        if (publishSku) { await call('admin.skus.setStatus', { id: publishSku.dataset.publishSku, status: 'on_sale' }); await refreshAll(); message('SKU 已上架。'); }
-        if (offsaleSku) { await call('admin.skus.setStatus', { id: offsaleSku.dataset.offsaleSku, status: 'off_sale' }); await refreshAll(); message('SKU 已下架。'); }
-        if (transitionOrder) { await call('admin.orders.transition', { id: transitionOrder.dataset.transitionOrder, status: transitionOrder.dataset.nextStatus }); await refreshAll(); message('订单履约状态已更新。'); }
+        if (approve) { const id = approve.dataset.approveImport; if (!global.MengshixianAdminOperationsConfirm.ask('importApprove', state.imports.find((row) => row._id === id))) return; await call('admin.imports.approve', { id }); await refreshAll(); message('已生成商品草稿。请点击该行“补齐商品资料”，核对图片、规格和价格后再决定上架。'); }
+        if (approveBusiness) { const id = approveBusiness.dataset.approveBusiness; if (!global.MengshixianAdminOperationsConfirm.ask('businessApprove', state.businessApplications.find((row) => row._id === id))) return; await call('admin.businessApplications.review', { id, decision: 'approved' }); await refreshAll(); message('企业申请已通过。'); }
+        if (rejectBusiness) { const id = rejectBusiness.dataset.rejectBusiness; if (!global.MengshixianAdminOperationsConfirm.ask('businessReject', state.businessApplications.find((row) => row._id === id))) return; await call('admin.businessApplications.review', { id, decision: 'rejected' }); await refreshAll(); message('企业申请已驳回。'); }
+        if (approveRefund) { const id = approveRefund.dataset.approveRefund; if (!global.MengshixianAdminOperationsConfirm.ask('refundApprove', state.refunds.find((row) => row._id === id))) return; await call('admin.refunds.review', { id, decision: 'approved' }); await refreshAll(); message('退款已审核通过。'); }
+        if (rejectRefund) { const id = rejectRefund.dataset.rejectRefund; if (!global.MengshixianAdminOperationsConfirm.ask('refundReject', state.refunds.find((row) => row._id === id))) return; await call('admin.refunds.review', { id, decision: 'rejected' }); await refreshAll(); message('退款申请已驳回。'); }
+        if (publish) { const id = publish.dataset.publishProduct; if (!global.MengshixianAdminOperationsConfirm.ask('productPublish', state.products.find((row) => row._id === id))) return; await call('admin.products.setStatus', { id, status: 'on_sale' }); await refreshAll(); message('商品已上架。'); }
+        if (publishSku) { const id = publishSku.dataset.publishSku; if (!global.MengshixianAdminOperationsConfirm.ask('skuPublish', state.skus.find((row) => row._id === id))) return; await call('admin.skus.setStatus', { id, status: 'on_sale' }); await refreshAll(); message('SKU 已上架。'); }
+        if (offsaleSku) { const id = offsaleSku.dataset.offsaleSku; if (!global.MengshixianAdminOperationsConfirm.ask('skuOffsale', state.skus.find((row) => row._id === id))) return; await call('admin.skus.setStatus', { id, status: 'off_sale' }); await refreshAll(); message('SKU 已下架。'); }
+        if (transitionOrder) { const id = transitionOrder.dataset.transitionOrder; const status = transitionOrder.dataset.nextStatus; if (!global.MengshixianAdminOperationsConfirm.ask('orderTransition', state.orders.find((row) => row._id === id), { status })) return; await call('admin.orders.transition', { id, status }); await refreshAll(); message('订单履约状态已更新。'); }
       } catch (error) { message(error.message || '操作失败。', true); }
     });
 
@@ -759,13 +614,22 @@ async function refreshAll() {
 
   async function init() {
     // 按当前页面设置标题
-    const meta = PAGE_META[PAGE_NAME] || PAGE_META.overview;
+    const meta = global.MengshixianAdminPages.pages[PAGE_NAME] || global.MengshixianAdminPages.pages.overview;
     const eyebrow = document.getElementById('moduleEyebrow');
     const title = document.getElementById('panelTitle');
-    if (eyebrow) eyebrow.textContent = meta.eyebrow;
+    if (eyebrow) eyebrow.textContent = meta.groupLabel;
     if (title) title.textContent = meta.title;
 
     bind();
+    if (PAGE_NAME === 'orders' && global.MengshixianAdminOrderReceipts) {
+      global.MengshixianAdminOrderReceipts.mount({ call, getAdmin: () => state.admin, onSaved: refreshAll });
+    }
+    const productKeyword = document.getElementById('productKeyword');
+    if (productKeyword) productKeyword.addEventListener('input', () => {
+      global.__productKeyword = productKeyword.value.trim().toLowerCase();
+      state.pageMap.products = 1;
+      render();
+    });
     // 订单筛选
     const orderFilterBtn = document.getElementById('orderFilterBtn');
     const orderFilterReset = document.getElementById('orderFilterReset');
@@ -785,15 +649,20 @@ async function refreshAll() {
     });
     try {
       state.admin = (await call('admin.me', {})).admin;
-      $('#adminUser').textContent = state.admin ? `${state.admin.displayName} · 已登录` : '已登录';
+      if (global.MengshixianAdminAccount) global.MengshixianAdminAccount.setAdmin(state.admin);
+      const connection = $('#adminConnectionState');
+      if (connection) connection.innerHTML = '<i></i>已连接';
       await refreshAll();
+      if (PAGE_NAME === 'access' && global.MengshixianStaffPage) await global.MengshixianStaffPage.mount({ call, admin: state.admin, message });
     } catch (error) {
       if (isAuthError(error)) {
         api.setToken('');
         global.location.replace('login.html');
       } else {
         message(`服务连接异常：${error && error.message || '请稍后刷新重试。'}`, true);
-        $('#adminUser').textContent = '已登录';
+        const connection = $('#adminConnectionState');
+        if (connection) { connection.classList.add('is-error'); connection.innerHTML = '<i></i>连接异常'; }
+        if (global.MengshixianAdminAccount) global.MengshixianAdminAccount.setAdmin(null);
         try { await refreshAll(); } catch (_) {}
       }
     }

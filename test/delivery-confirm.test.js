@@ -1,0 +1,14 @@
+const assert = require('node:assert/strict');
+const { ask, deliverySummary } = require('../admin-operation-forms');
+const state = { warehouses: [{ _id: 'private-w', name: '中心仓' }], deliveryAreas: [{ _id: 'private-a', name: '城区' }] };
+const fields = { name: '上午配送', status: 'active', warehouseId: 'private-w', deliveryAreaId: 'private-a', startTime: '09:00', endTime: '12:00' };
+const form = { getAttribute: () => 'deliverySlotForm', elements: Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, { value }])) };
+assert.match(deliverySummary(form, state), /城区[\s\S]*中心仓[\s\S]*09:00–12:00/);
+assert.doesNotMatch(deliverySummary(form, state), /private-/);
+assert.equal(ask(form, state, () => false), false);
+assert.equal(ask(form, state, () => true), true);
+form.getAttribute = () => 'deliveryAreaForm';
+form.elements.warehouseIds = { value: 'private-w' };
+form.elements.regionNames = { value: '测试区' };
+assert.match(deliverySummary(form, state), /测试区[\s\S]*中心仓/);
+console.log('Delivery confirmation uses names and clearly reports effect');

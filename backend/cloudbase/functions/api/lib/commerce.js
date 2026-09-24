@@ -25,7 +25,7 @@ function cents(value, label) {
   if (!Number.isFinite(parsed) || parsed < 0) fail('VALIDATION_ERROR', `${label}必须是非负金额。`);
   return Math.round(parsed * 100);
 }
-function iso(now) { return formatDateTimeLocal(now); }
+function iso(now) { return now.toISOString(); }
 function audienceVisible(audienceType, userOrType) {
   const audience = ['all', 'c', 'b'].includes(audienceType) ? audienceType : 'all';
   const viewerType = typeof userOrType === 'string'
@@ -202,14 +202,14 @@ async function createOrder({ store, user, payload, now }) {
     const reservationIds = quote.items.map((item) => reservationId(deterministicOrderId, item.skuId));
     const itemIds = quote.items.map((item) => orderItemId(deterministicOrderId, item.skuId));
     const paymentDocumentId = paymentMethod === 'wechat' ? paymentId(deterministicOrderId) : '';
-    const order = { _id: deterministicOrderId, orderNo: createOrderNo(now), userId: user._id, organizationId: user.organizationId || '', customerType: user.userType || 'c', warehouseId, deliveryAreaId: quote.freight.areaId, addressSnapshot: { name: currentAddress.name, phoneMasked: currentAddress.phoneMasked, detail: currentAddress.detail, regionCode: currentAddress.regionCode }, fulfillmentContactCiphertext: currentAddress.phoneCiphertext || '', groupId: payload.groupId ? String(payload.groupId) : '', groupCampaignId: groupCampaign ? groupCampaign._id : '', groupStatus: groupCampaign ? 'reserved' : '', deliverySlotSnapshot: quote.deliverySlot, itemsSnapshot: quote.items, pricingSnapshot: { goodsAmountCent: quote.goodsAmountCent, currency: 'CNY', priceRuleIds: quote.items.map((item) => item.priceRuleId) }, freightSnapshot: quote.freight, totalAmountCent: quote.payableAmountCent, paymentMethod, paymentStatus: paymentMethod === 'wechat' ? 'pending' : (paymentMethod === 'demo' ? 'demo_not_required' : 'not_required'), status: paymentMethod === 'wechat' ? 'pending_payment' : 'pending_confirmation', idempotencyKey, reservationIds, itemIds, paymentId: paymentDocumentId, refundIds: [], refundedAmountCent: 0, activeRefundId: '', sortValue, createdAt: timestamp, updatedAt: timestamp };
+    const order = { _id: deterministicOrderId, orderNo: createOrderNo(now), userId: user._id, organizationId: user.organizationId || '', customerType: user.userType || 'c', warehouseId, deliveryAreaId: quote.freight.areaId, addressSnapshot: { name: currentAddress.name, phoneMasked: currentAddress.phoneMasked, detail: currentAddress.detail, regionCode: currentAddress.regionCode }, fulfillmentContactCiphertext: currentAddress.phoneCiphertext || '', groupId: payload.groupId ? String(payload.groupId) : '', groupCampaignId: groupCampaign ? groupCampaign._id : '', groupStatus: groupCampaign ? 'reserved' : '', deliverySlotSnapshot: quote.deliverySlot, itemsSnapshot: quote.items, pricingSnapshot: { goodsAmountCent: quote.goodsAmountCent, currency: 'CNY', priceRuleIds: quote.items.map((item) => item.priceRuleId) }, freightSnapshot: quote.freight, totalAmountCent: quote.payableAmountCent, paymentMethod, ...(paymentMethod === 'offline' ? { receivedAmountCent: 0, outstandingAmountCent: quote.payableAmountCent, collectionStatus: 'unpaid' } : {}), paymentStatus: paymentMethod === 'wechat' ? 'pending' : (paymentMethod === 'demo' ? 'demo_not_required' : 'offline_pending'), status: paymentMethod === 'wechat' ? 'pending_payment' : 'pending_confirmation', idempotencyKey, reservationIds, itemIds, paymentId: paymentDocumentId, refundIds: [], refundedAmountCent: 0, activeRefundId: '', sortValue, createdAt: timestamp, updatedAt: timestamp };
     for (const item of quote.items) {
       const inventoryDocumentId = inventoryId(warehouseId, item.skuId);
       const inventory = await txDocument(tx, 'inventory', inventoryDocumentId);
       if (!inventory || Number(inventory.available) < item.quantity) fail('INVENTORY_NOT_AVAILABLE', '库存已变化，请重新结算。');
       const onHand = Number(inventory.onHand || 0); const reserved = Number(inventory.reserved || 0) + item.quantity;
       await tx.update('inventory', inventoryDocumentId, { reserved, available: onHand - reserved, version: Number(inventory.version || 0) + 1, updatedAt: timestamp });
-      const reservation = { _id: reservationId(deterministicOrderId, item.skuId), orderId: deterministicOrderId, skuId: item.skuId, warehouseId, quantity: item.quantity, status: 'reserved', expiresAt: paymentMethod === 'wechat' ? formatDateTimeLocal(new Date(now.getTime() + 30 * 60 * 1000)) : '', createdAt: timestamp };
+      const reservation = { _id: reservationId(deterministicOrderId, item.skuId), orderId: deterministicOrderId, skuId: item.skuId, warehouseId, quantity: item.quantity, status: 'reserved', expiresAt: paymentMethod === 'wechat' ? new Date(now.getTime() + 30 * 60 * 1000).toISOString() : '', createdAt: timestamp };
       await tx.set('inventory_reservations', reservation._id, reservation);
       await writeLedger(tx, { warehouseId, skuId: item.skuId, change: 0, reservedChange: item.quantity, before: onHand - Number(inventory.reserved || 0), after: onHand - reserved, reason: 'order_reserve', referenceType: 'order', referenceId: deterministicOrderId, operatorId: user._id, idempotencyKey, createdAt: timestamp });
       await tx.set('order_items', orderItemId(deterministicOrderId, item.skuId), { _id: orderItemId(deterministicOrderId, item.skuId), orderId: deterministicOrderId, ...item, createdAt: timestamp });
@@ -249,7 +249,7 @@ async function cancelOrder({ store, user, orderId: id, now }) {
     if (order.status === 'cancelled') return { order, idempotent: true };
     if (!['pending_payment', 'pending_confirmation'].includes(order.status)) fail('ORDER_CANNOT_CANCEL', '当前订单状态不能取消。');
     // 已支付订单的库存预占已消耗，直接取消会造成不退款、不回补且退款入口关闭，必须走退款售后流程。
-    if (order.paymentStatus === 'paid') fail('ORDER_PAID_CANCEL_FORBIDDEN', '已支付订单不能直接取消，请通过退款售后流程处理。');
+    if (order.paymentStatus === 'paid' || Number(order.receivedAmountCent || 0) > 0) fail('ORDER_PAID_CANCEL_FORBIDDEN', '已有实际收款的订单不能直接取消，请先核实退款处理。');
     for (const reservation of await orderReservations(tx, order)) await releaseReservation(tx, reservation, order, now, 'order_cancel_release');
     await releaseSlot(tx, { groupId: order.groupId, orderId: order._id, now });
     const timestamp = iso(now); await tx.update('orders', order._id, { status: 'cancelled', cancelledAt: timestamp, updatedAt: timestamp });
@@ -332,4 +332,4 @@ async function expireGroups({ store, now, limit = 50 }) {
   return { scanned, closed, released, refundRequired, hasMore: candidates.length >= maxProcess };
 }
 
-module.exports = { cents, audienceVisible, buildQuote, createOrder, cancelOrder, expireReservations, expireGroups, confirmWechatPayment, resolveUnitPrice, resolveUnitPrices, orderReservations, consumeReservation, releaseReservation };
+module.exports = { cents, audienceVisible, buildQuote, createOrder, cancelOrder, expireReservations, expireGroups, confirmWechatPayment, resolveUnitPrice, resolveUnitPrices, orderReservations, consumeReservation, releaseReservation, resolveFreight, resolveDeliverySlot };

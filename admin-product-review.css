@@ -1,0 +1,13 @@
+.review-layout{display:grid;grid-template-columns:minmax(220px,290px) minmax(0,1fr);gap:20px;align-items:start}
+.review-list,.review-detail{background:#fff;border:1px solid #dce8f2;border-radius:14px;padding:18px}
+.review-list{max-height:75vh;overflow:auto}.review-list input{width:100%;box-sizing:border-box;margin:8px 0 14px;padding:9px}
+.review-item{display:block;width:100%;text-align:left;background:#f6f9fc;border:1px solid #dce8f2;border-radius:8px;padding:10px;margin:6px 0;color:#193c59;cursor:pointer}
+.review-item.is-selected{border-color:#2878ab;background:#eaf5fb}.review-item small{display:block;color:#5e7484;margin-top:3px}
+.review-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:18px 0}
+.review-field{background:#f6f9fc;border-radius:9px;padding:12px;min-width:0}.review-field strong{display:block;color:#507089;font-size:12px;margin-bottom:6px}
+.review-field img{display:block;max-width:200px;max-height:130px;object-fit:contain;margin-top:8px;border-radius:7px}
+.review-detail table{width:100%}.review-detail th,.review-detail td{text-align:left;padding:9px;border-bottom:1px solid #e6eef4}
+.review-detail select{max-width:100%;padding:8px}.review-detail .review-action{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.review-issues{padding:12px 16px;background:#fff5eb;color:#87542f;border-radius:9px}.review-ready{padding:12px 16px;background:#e7f6ee;color:#176143;border-radius:9px}
+.review-media-link{margin:18px 0;padding:15px;border:1px solid #dce8f2;border-radius:10px}.review-media-link label{display:block;margin:10px 0}.review-media-link select{width:100%}
+@media(max-width:850px){.review-layout{grid-template-columns:1fr}.review-list{max-height:260px}.review-grid{grid-template-columns:1fr}}

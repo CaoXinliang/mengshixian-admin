@@ -1,0 +1,30 @@
+const assert=require('node:assert/strict');
+const {createCatalogFixture}=require('./support/catalog-flow-fixture.cjs');
+async function main(){
+  const f=await createCatalogFixture();
+  const input={username:'password-operator',displayName:'密码测试运营',phone:'13800138000',role:'operator',password:'local-before-password'};
+  const user=await f.call('admin.staff.create',input);
+  const sessions=[];
+  for(let i=0;i<102;i++) sessions.push((await f.call('admin.login',{username:input.username,password:input.password})).token);
+  await assert.rejects(f.call('admin.staff.resetPassword',{adminToken:sessions[0],id:user.id,newPassword:'local-after-password'}),e=>e.code==='ADMIN_FORBIDDEN');
+  await f.call('admin.staff.resetPassword',{id:user.id,newPassword:'local-after-password'});
+  for(const adminToken of sessions) await assert.rejects(f.call('admin.me',{adminToken}),e=>e.code==='ADMIN_SESSION_EXPIRED');
+  await assert.rejects(f.call('admin.login',{username:input.username,password:input.password}),e=>e.code==='ADMIN_LOGIN_FAILED');
+  const next=await f.call('admin.login',{username:input.username,password:'local-after-password'});
+  await f.call('admin.password.change',{adminToken:next.token,currentPassword:'local-after-password',newPassword:'local-own-new-password'});
+  await assert.rejects(f.call('admin.me',{adminToken:next.token}),e=>e.code==='ADMIN_SESSION_EXPIRED');
+  const final=await f.call('admin.login',{username:input.username,password:'local-own-new-password'});
+  assert.equal(final.admin.role,'operator');
+  await f.call('admin.staff.update',{id:user.id,status:'disabled'});
+  await f.call('admin.staff.update',{id:user.id,status:'active'});
+  await assert.rejects(f.call('admin.me',{adminToken:final.token}),e=>e.code==='ADMIN_SESSION_EXPIRED');
+  const logs=[];
+  for(let page=1;page<=3;page++) logs.push(...(await f.call('admin.audit.list',{page,pageSize:100})).rows);
+  const resets=logs.filter(r=>r.action==='staff.password.reset');
+  assert.equal(resets.length,1);
+  assert.equal(resets[0].targetId,user.id);
+  assert.ok(resets[0].actorId&&resets[0].createdAt&&resets[0].details.sessionsInvalidated);
+  assert.ok(!JSON.stringify(logs).includes('local-after-password'));
+  console.log('Staff password: super-only reset, 102 sessions invalidated, old password rejected, operator own change');
+}
+main().catch(e=>{console.error(e);process.exitCode=1;});

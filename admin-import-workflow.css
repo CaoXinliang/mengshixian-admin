@@ -1,0 +1,12 @@
+.import-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.import-actions button, .import-actions .upload-label { min-height: 38px; }
+.import-steps { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
+.import-steps span { padding: 9px 12px; border-radius: 8px; background: #eef5fd; color: #27527c; font-size: 13px; }
+.import-preview { margin: 18px 0 24px; padding: 18px; border: 1px solid #cfdfef; border-radius: 12px; background: #f8fbff; }
+.import-preview[hidden] { display: none; }
+.import-preview h4 { margin: 0 0 8px; }
+.import-preview p { margin: 0 0 14px; line-height: 1.65; }
+.import-preview .table-wrap { max-height: 360px; overflow: auto; margin-bottom: 14px; }
+.import-preview td { max-width: 260px; overflow-wrap: anywhere; }
+.import-preview .primary-action { background: #1767aa; color: white; border: 0; border-radius: 8px; padding: 10px 16px; cursor: pointer; }
+.import-preview .primary-action:disabled { opacity: .5; cursor: not-allowed; }

@@ -1,0 +1,32 @@
+const assert = require('node:assert/strict');
+
+module.exports = async function draftReview({ fixture, evaluate, waitFor, pause }) {
+  const jobs = (await fixture.call('admin.imports.list', { pageSize: 100 })).rows;
+  const source = jobs.find(job => job.parsedPayload.skuCode === 'TEST-S-0001');
+  assert.ok(source, '使用已交付演示表的首条记录继续，不另造商品');
+  const selector = `[data-approve-import="${source._id}"]`;
+  await evaluate(`window.confirm = () => false; document.querySelector(${JSON.stringify(selector)}).click()`);
+  await pause(50);
+  assert.equal((await fixture.call('admin.products.list')).rows.length, 0, '取消生成不能创建商品');
+  await evaluate(`window.confirm = () => true; document.querySelector(${JSON.stringify(selector)}).click()`);
+  await waitFor("document.querySelector('#globalMessage').textContent.includes('已生成商品草稿')");
+  const product = (await fixture.call('admin.products.list')).rows.find(row => row.spuCode === source.parsedPayload.productCode);
+  assert.ok(product);
+  assert.equal(product.status, 'draft');
+  const skus = (await fixture.call('admin.skus.list')).rows.filter(row => row.productId === product._id);
+  assert.equal(skus.length, 1);
+  assert.equal(skus[0].status, 'draft');
+  const target = `product-review.html?code=${encodeURIComponent(source.parsedPayload.productCode)}`;
+  await evaluate(`document.querySelector('a[href="${target}"]').click()`);
+  await waitFor("Boolean(document.querySelector('#publishReviewed'))");
+  assert.equal(await evaluate("document.querySelector('#publishReviewed').disabled"), true, '缺价格素材库存配送不能发布');
+  const detail = await evaluate("document.querySelector('#reviewDetail').textContent");
+  assert.ok(detail.includes(source.parsedPayload.name));
+  assert.match(detail, /待补/);
+  assert.match(detail, /价格/);
+  assert.match(detail, /主图/);
+  assert.match(detail, /库存/);
+  assert.equal((await fixture.call('admin.products.list')).rows[0].status, 'draft');
+  console.log('Same delivered row: explicit draft creation -> review page; missing data blocks publish');
+  return { productCode: source.parsedPayload.productCode };
+};

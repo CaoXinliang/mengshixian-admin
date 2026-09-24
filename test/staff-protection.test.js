@@ -1,0 +1,31 @@
+const assert = require('node:assert/strict');
+const {createCatalogFixture} = require('./support/catalog-flow-fixture.cjs');
+async function main() {
+  const f = await createCatalogFixture();
+  const owner = (await f.call('admin.me')).admin;
+  await assert.rejects(f.call('admin.staff.update', {id:owner.id,role:'operator'}), e => e.code === 'STAFF_LAST_SUPER_ADMIN');
+  const input = {username:'second-owner',displayName:'第二管理员',phone:'13800138000',role:'super_admin',password:'local-second-password'};
+  const second = await f.call('admin.staff.create', input);
+  const login = await f.call('admin.login', {username:input.username,password:input.password});
+  const operator = await f.call('admin.staff.update', {id:owner.id,role:'operator'});
+  assert.equal(operator.role,'operator');
+  await assert.rejects(f.call('admin.staff.update', {id:owner.id,role:'super_admin'}), e => e.code === 'ADMIN_FORBIDDEN');
+  await assert.rejects(f.call('admin.staff.update', {id:second.id,status:'disabled',adminToken:login.token}), e => e.code === 'STAFF_LAST_SUPER_ADMIN');
+  await assert.rejects(f.call('admin.staff.update', {id:owner.id,phoneVerificationStatus:'verified',adminToken:login.token}), e => e.code === 'STAFF_VERIFICATION_FORBIDDEN');
+  const changed = await f.call('admin.staff.update', {id:owner.id,phone:'13900139000',adminToken:login.token});
+  assert.equal(changed.phoneVerificationStatus,'unverified');
+  assert.equal(changed.phoneMasked,'139****9000');
+  const third = await f.call('admin.staff.create', {...input,username:'third-owner',adminToken:login.token});
+  const thirdLogin = await f.call('admin.login', {username:'third-owner',password:input.password});
+  const tokens=[login.token,thirdLogin.token];
+  const results = await Promise.allSettled([second.id,third.id].map((id,i) => f.call('admin.staff.update', {id,role:'operator',adminToken:tokens[i]})));
+  assert.equal(results.filter(r => r.status === 'fulfilled').length,1);
+  const accounts=await Promise.all(tokens.map(adminToken=>f.call('admin.me',{adminToken})));
+  assert.equal(accounts.filter(r=>r.admin.role==='super_admin').length,1);
+  const superToken=tokens[accounts.findIndex(r=>r.admin.role==='super_admin')];
+  const logs = (await f.call('admin.audit.list',{adminToken:superToken,pageSize:100})).rows.filter(r => r.action === 'staff.update');
+  assert.equal(logs.length,3);
+  assert.ok(logs.every(r => r.actorId && r.targetId && r.createdAt));
+  console.log('Staff protections: legacy-owner migration, self-escalation, last-super, concurrent updates, phone and audit');
+}
+main().catch(e => {console.error(e);process.exitCode=1;});

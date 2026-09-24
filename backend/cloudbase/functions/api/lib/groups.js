@@ -1,12 +1,4 @@
 const { fail } = require('./response');
-function pad2(n) { return String(n).padStart(2, '0'); }
-function formatDateTimeLocal(date) {
-  if (!(date instanceof Date)) date = new Date(date);
-  const cn = new Date(date.getTime() + 8 * 3600 * 1000);
-  return cn.getUTCFullYear() + '-' + pad2(cn.getUTCMonth() + 1) + '-' + pad2(cn.getUTCDate())
-    + ' ' + pad2(cn.getUTCHours()) + ':' + pad2(cn.getUTCMinutes()) + ':' + pad2(cn.getUTCSeconds());
-}
-
 const { randomId } = require('./security');
 const { groupMemberId } = require('./transaction-ids');
 
@@ -19,7 +11,7 @@ function active(campaign, now) {
 async function createGroup({ store, user, campaign, now }) {
   const size = Number(campaign.groupSize || 0);
   if (!Number.isInteger(size) || size < 2 || size > 12) fail('GROUP_SIZE_INVALID', '拼团人数必须为 2 到 12 人。');
-  const timestamp = formatDateTimeLocal(now);
+  const timestamp = now.toISOString();
   return store.create('groups', {
     groupNo: `G${randomId('').slice(-12).toUpperCase()}`,
     campaignId: campaign._id,
@@ -35,7 +27,7 @@ async function createGroup({ store, user, campaign, now }) {
     orderIds: [],
     createdAt: timestamp,
     updatedAt: timestamp,
-    expiresAt: formatDateTimeLocal(new Date(now.getTime() + Number(campaign.durationMinutes) * 60 * 1000))
+    expiresAt: new Date(now.getTime() + Number(campaign.durationMinutes) * 60 * 1000).toISOString()
   });
 }
 
@@ -46,7 +38,7 @@ async function reserveSlot(tx, { groupId, campaignId, userId, orderId, now }) {
   const reservedUsers = group.reservedUserIds || [];
   const memberUsers = group.memberUserIds || [];
   if (reservedUsers.includes(userId) || memberUsers.includes(userId)) fail('GROUP_ALREADY_JOINED', '当前用户已参加该拼团。');
-  const timestamp = formatDateTimeLocal(now);
+  const timestamp = now.toISOString();
   await tx.update('groups', group._id, {
     reservedMemberCount: Number(group.reservedMemberCount || 0) + 1,
     reservedUserIds: [...reservedUsers, userId],
@@ -72,7 +64,7 @@ async function releaseSlot(tx, { groupId, orderId, now }) {
     reservedMemberCount: Math.max(Number(group.memberCount || 0), Number(group.reservedMemberCount || 0) - 1),
     reservedOrderIds,
     reservedUserIds,
-    updatedAt: formatDateTimeLocal(now)
+    updatedAt: now.toISOString()
   });
   return true;
 }
@@ -84,7 +76,7 @@ async function recordPaidMember(tx, { groupId, orderId, userId, now }) {
   const existing = await tx.getById('group_members', memberDocumentId);
   if (existing && existing.status === 'active') return { group, idempotent: true };
   if (Number(group.memberCount || 0) >= Number(group.groupSize || 0)) fail('GROUP_FULL', '拼团已满。');
-  const timestamp = formatDateTimeLocal(now);
+  const timestamp = now.toISOString();
   const member = { _id: memberDocumentId, groupId, orderId, userId, status: 'active', paidAt: timestamp, createdAt: existing && existing.createdAt || timestamp, updatedAt: timestamp };
   await tx.set('group_members', memberDocumentId, member);
   const memberCount = Number(group.memberCount || 0) + 1;
@@ -112,7 +104,7 @@ async function removePaidMember(tx, { groupId, orderId, now }) {
   if (!member || member.status !== 'active') return false;
   const group = await tx.getById('groups', groupId);
   if (!group) return false;
-  const timestamp = formatDateTimeLocal(now);
+  const timestamp = now.toISOString();
   await tx.update('group_members', memberDocumentId, { status: 'refunded', refundedAt: timestamp, updatedAt: timestamp });
   await tx.update('groups', group._id, {
     memberCount: Math.max(0, Number(group.memberCount || 0) - 1),

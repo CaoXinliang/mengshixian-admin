@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
@@ -6,97 +6,25 @@
   <title>梦食鲜｜退款售后</title>
   <link rel="icon" href="assets/logo.png" type="image/png">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="admin-shell.css">
+  <link rel="stylesheet" href="admin-page-summary.css">
+  <link rel="stylesheet" href="admin-domain-pages.css">
+  <link rel="stylesheet" href="admin-order-guide.css">
 </head>
 <body>
   <main class="admin-shell" id="adminShell">
-    <aside class="sidebar">
-      <div class="brand"><img src="assets/logo.png" alt="梦食鲜" class="brand-logo"><div><strong>梦食鲜</strong><small>运营管理后台</small></div></div>
-      <p class="nav-caption">日常经营</p>
-      <nav id="mainNav" aria-label="后台业务模块">
-    <div class="nav-group">
-      <a class="nav-parent" href="index.html"><span class="module-mark">今</span><span><strong>首页</strong><small>待办与经营概况</small></span></a>
-    </div>
-    <div class="nav-group">
-      <a class="nav-parent" href="products.html"><span class="module-mark">商</span><span><strong>商品中心</strong><small>商品、分类与价格</small></span><span class="arrow">›</span></a>
-      <div class="nav-children">
-        <a href="products.html">商品管理</a>
-        <a href="categories.html">分类管理</a>
-        <a href="imports.html">批量导入</a>
-        <a href="pricing.html">价格规则</a>
-      </div>
-    </div>
-    <div class="nav-group is-open">
-      <a class="nav-parent is-active" href="orders.html"><span class="module-mark">订</span><span><strong>订单中心</strong><small>履约与售后</small></span><span class="arrow">›</span></a>
-      <div class="nav-children">
-        <a href="orders.html">订单履约</a>
-        <a href="refunds.html" class="is-active">退款售后</a>
-      </div>
-    </div>
-    <div class="nav-group">
-      <a class="nav-parent" href="warehouses.html"><span class="module-mark">仓</span><span><strong>库存配送</strong><small>库存、仓库与运费</small></span><span class="arrow">›</span></a>
-      <div class="nav-children">
-        <a href="warehouses.html">仓库管理</a>
-        <a href="areas.html">配送区域</a>
-        <a href="freight.html">运费规则</a>
-        <a href="inventory.html">库存管理</a>
-        <a href="slots.html">配送时段</a>
-      </div>
-    </div>
-    <div class="nav-group">
-      <a class="nav-parent" href="businesses.html"><span class="module-mark">客</span><span><strong>客户中心</strong><small>客户与企业审核</small></span><span class="arrow">›</span></a>
-      <div class="nav-children">
-        <a href="businesses.html">企业审核</a>
-        <a href="users.html">用户列表</a>
-      </div>
-    </div>
-    <div class="nav-group">
-      <a class="nav-parent" href="banners.html"><span class="module-mark">页</span><span><strong>内容运营</strong><small>首页、轮播与素材</small></span><span class="arrow">›</span></a>
-      <div class="nav-children">
-        <a href="banners.html">轮播图</a>
-        <a href="sections.html">首页模块</a>
-        <a href="media.html">素材库</a>
-      </div>
-    </div>
-    <div class="nav-group">
-      <a class="nav-parent" href="groups.html"><span class="module-mark">营</span><span><strong>营销中心</strong><small>拼团活动</small></span></a>
-    </div>
-    <div class="nav-group">
-      <a class="nav-parent" href="access.html"><span class="module-mark">设</span><span><strong>系统管理</strong><small>账号、权限与记录</small></span><span class="arrow">›</span></a>
-      <div class="nav-children">
-        <a href="access.html">账号与权限</a>
-        <a href="audit.html">操作记录</a>
-      </div>
-    </div>
-
-      </nav>
-      <a class="logout mode-link" href="simple.html">进入日常快捷版</a>
-      <button class="logout" id="logoutButton">退出登录</button>
-    </aside>
+    <aside class="sidebar" id="adminSidebar"></aside>
     <section class="workspace">
-      <header class="workspace-head"><div><p class="eyebrow" id="moduleEyebrow"></p><h2 id="panelTitle"></h2></div><div class="workspace-actions"><span class="service-state"><i></i>服务正常</span><div class="admin-user" id="adminUser"></div></div></header>
+      <header class="workspace-head" id="adminHeader"></header>
       <p class="notice" id="globalMessage" aria-live="polite"></p>
-      <section class="panel is-active" data-panel="refunds">
-        <article class="card"><h3>退款售后</h3><p>审核通过只会进入退款处理中，必须等待退款渠道验签通知后才标记成功；后台不能手工伪造退款完成。</p></article>
-        <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>退款单号</th><th>订单 ID</th><th>金额</th><th>原因</th><th>状态</th><th class="col-action">操作</th></tr></thead><tbody id="refundsTable"></tbody></table></div>
+      <section class="panel is-active domain-panel" data-panel="refunds">
+        <div class="domain-panel-head"><div><h3>退款处理</h3><p>先审核新申请，再跟进处理中的退款。审核通过不代表款项已经退回。</p></div><span class="domain-context">到账结果以服务端确认为准</span></div>
+        <section class="order-guide" aria-label="退款待办引导"><div class="order-guide-heading"><h4>现在先处理</h4><p id="refundGuideMessage" role="status" aria-live="polite">正在读取退款申请…</p></div><div class="order-guide-cards" id="refundGuideCards"></div></section>
+        <div class="filter-bar"><label class="order-guide-filter-label" for="refundGuideStatus">查看哪类退款</label><select id="refundGuideStatus"><option value="">全部退款</option><option value="requested">待审核</option><option value="processing">退款处理中</option><option value="reviewing">审核中</option><option value="succeeded">已退款</option><option value="rejected">已驳回</option></select></div>
+        <p class="order-guide-filter-hint" id="refundGuideFilterHint" role="status"></p>
+        <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>退款单号</th><th>关联订单</th><th>申请金额</th><th>申请原因</th><th>当前状态</th><th class="col-action">下一步</th></tr></thead><tbody id="refundsTable"></tbody></table></div>
       </section>
-      <div class="hidden-forms">
-        <form class="card form-card" id="categoryForm"><h3>新增或修改分类</h3><input type="hidden" name="id"><label>分类名称<input name="name" required maxlength="30"></label><label>分类图片素材 ID<input name="imageMediaId" placeholder="可稍后在素材库补充"></label><label>排序<input name="sort" type="number" value="0"></label><label>状态<select name="status"><option value="draft">草稿</option><option value="enabled">启用</option><option value="disabled">停用</option></select></label><button class="primary">保存分类</button></form>
-        <form class="card form-card" id="productForm"><h3>商品信息</h3><input type="hidden" name="id"><label>商品名称<input name="name" required maxlength="100"></label><label>分类 ID<input name="categoryId" list="categoryOptions" required><datalist id="categoryOptions"></datalist></label><label>品牌<input name="brand" maxlength="60"></label><label>产地<input name="origin" maxlength="80"></label><label>储存温度<input name="frozenTemperature" value="-18℃" maxlength="30"></label><label>商品主图素材 ID<input name="coverMediaId"></label><label>排序<input name="sort" type="number" value="0"></label><button class="primary">保存商品</button></form>
-        <form class="card form-card" id="skuForm"><h3>SKU 规格</h3><input type="hidden" name="id"><label>关联商品 ID<input name="productId" required></label><label>规格名称<input name="specName" required maxlength="100"></label><label>包装单位<input name="packageUnit" maxlength="100"></label><label>净含量<input name="netWeight" maxlength="40"></label><label>重量单位<input name="weightUnit" maxlength="20"></label><label>每箱数量<input name="piecesPerCase" type="number" value="0"></label><label>条码<input name="barcode" maxlength="60"></label><label>状态<select name="status"><option value="draft">草稿</option><option value="on_sale">上架</option><option value="off_sale">下架</option></select></label><button class="primary">保存 SKU</button></form>
-        <form class="card form-card" id="productMediaForm"><h3>商品详情媒体关联</h3><p class="muted">先在素材库上传并登记，再把素材 ID 关联到具体商品。视频使用"详情"角色，保存后才会出现在小程序商品详情页。</p><input type="hidden" name="id"><label>商品 ID<input name="productId" required list="productMediaProductOptions"></label><datalist id="productMediaProductOptions"></datalist><label>SKU ID（可选）<input name="skuId" list="skuOptions"></label><label>素材 ID<input name="mediaAssetId" required list="mediaAssetOptions"></label><datalist id="mediaAssetOptions"></datalist><label>媒体类型<select name="mediaType"><option value="image">图片</option><option value="video">视频</option></select></label><label>角色<select name="role"><option value="cover">封面</option><option value="detail" selected>详情</option><option value="video_cover">视频封面</option><option value="instruction">说明</option></select></label><label>排序<input name="sort" type="number" value="0"></label><label class="checkbox"><input name="enabled" type="checkbox" checked>启用</label><button class="primary">保存商品媒体关联</button></form>
-        <form class="card form-card" id="priceForm"><h3>价格规则</h3><input type="hidden" name="id"><label>SKU ID<input name="skuId" required list="skuOptions"></label><datalist id="skuOptions"></datalist><label>适用范围<select name="scopeType"><option value="public">所有登录用户</option><option value="customer_type">客户类型</option><option value="level">会员等级</option><option value="organization">企业组织</option><option value="user">指定用户</option></select></label><label>适用对象 ID<input name="scopeId" placeholder="公开价可留空"></label><label>适用端<select name="channel"><option value="all">全部端</option><option value="miniapp">小程序</option><option value="web">网页端</option></select></label><label>价格（分）<input name="amountCent" type="number" min="0" required placeholder="例如 2500 = ¥25.00"></label><label>优先级<input name="priority" type="number" value="0"></label><label>状态<select name="status"><option value="draft">草稿</option><option value="active">生效</option><option value="disabled">停用</option></select></label><button class="primary">保存价格规则</button></form>
-        <form class="card form-card" id="warehouseForm"><h3>仓库</h3><input type="hidden" name="id"><label>仓库编码<input name="code" required maxlength="40"></label><label>仓库名称<input name="name" required maxlength="80"></label><label>地址<input name="address" maxlength="200"></label><label>状态<select name="status"><option value="active">启用</option><option value="disabled">停用</option></select></label><label>排序<input name="sort" type="number" value="0"></label><button class="primary">保存仓库</button></form>
-        <form class="card form-card" id="deliveryAreaForm"><h3>配送区域</h3><input type="hidden" name="id"><label>区域名称<input name="name" required maxlength="80"></label><label>区域编码<textarea name="regionCodes" required placeholder="每行一个区县/配送区域编码"></textarea></label><label>可配送仓库 ID<textarea name="warehouseIds" placeholder="每行一个；留空表示所有仓库"></textarea></label><label>状态<select name="status"><option value="active">启用</option><option value="disabled">停用</option></select></label><button class="primary">保存配送区域</button></form>
-        <form class="card form-card" id="freightForm"><h3>运费规则</h3><input type="hidden" name="id"><label>规则名称<input name="name" required maxlength="80"></label><label>配送区域 ID<input name="deliveryAreaId" required list="deliveryAreaOptions"></label><datalist id="deliveryAreaOptions"></datalist><label>指定仓库 ID<input name="warehouseId" list="warehouseOptions" placeholder="可留空"></label><datalist id="warehouseOptions"></datalist><label>基础运费（分）<input name="baseFeeCent" type="number" min="0" value="0"></label><label>附加运费（分）<input name="additionalFeeCent" type="number" min="0" value="0"></label><label>免运门槛（分）<input name="freeThresholdCent" type="number" min="0" value="0"></label><label>状态<select name="status"><option value="draft">草稿</option><option value="active">生效</option><option value="disabled">停用</option></select></label><button class="primary">保存运费规则</button></form>
-        <form class="card form-card" id="deliverySlotForm"><h3>配送时段</h3><input type="hidden" name="id"><label>时段名称<input name="name" required></label><label>配送区域 ID<input name="deliveryAreaId" required list="deliveryAreaOptions"></label><label>仓库 ID<input name="warehouseId" list="warehouseOptions"></label><label>开始时间<input name="startTime" placeholder="09:00" required></label><label>结束时间<input name="endTime" placeholder="12:00" required></label><label>状态<select name="status"><option value="draft">草稿</option><option value="active">生效</option><option value="disabled">停用</option></select></label><button class="primary">保存配送时段</button></form>
-        <form class="card form-card" id="groupCampaignForm"><h3>拼团活动</h3><input type="hidden" name="id"><label>活动标题<input name="title" required></label><label>SKU ID<input name="skuId" required list="skuOptions"></label><label>成团人数<input name="groupSize" type="number" min="2" value="2" required></label><label>有效期（分钟）<input name="durationMinutes" type="number" min="5" value="120" required></label><label>拼团单价（分）<input name="groupPriceCent" type="number" min="0" required></label><label>适用用户<select name="targetUserType"><option value="all">全部</option><option value="b">B 端</option><option value="c">C 端</option></select></label><label>状态<select name="status"><option value="draft">草稿</option><option value="active">生效</option><option value="disabled">停用</option></select></label><button class="primary">保存拼团活动</button></form>
-        <form class="card form-card" id="adminUserForm"><h3>管理员账号</h3><input type="hidden" name="id"><label>登录账号<input name="username" required maxlength="40"></label><label>显示名称<input name="displayName" required maxlength="40"></label><label>密码<input name="password" type="password" minlength="12" placeholder="新建必填；编辑留空不改"></label><label>角色 ID（每行一个）<textarea name="roleIds" required></textarea></label><label>状态<select name="status"><option value="active">启用</option><option value="disabled">停用</option></select></label><button class="primary">保存管理员</button></form>
-        <form class="card form-card" id="bannerForm"><h3>轮播图配置</h3><input type="hidden" name="id"><label>标题<input name="title" required maxlength="100"></label><label>素材 ID<input name="mediaAssetId" placeholder="从素材库复制"></label><label>跳转类型<select name="jumpType"><option value="none">无跳转</option><option value="product">商品</option><option value="category">分类</option><option value="url">网页链接</option></select></label><label>跳转目标<input name="jumpTarget" maxlength="200"></label><label>排序<input name="sort" type="number" value="0"></label><label class="checkbox"><input name="enabled" type="checkbox" checked>启用</label><button class="primary">保存轮播图</button></form>
-        <form class="card form-card" id="sectionForm"><h3>新增或修改首页模块</h3><input type="hidden" name="id"><label>模块类型<select name="moduleType"><option value="news">活动头条</option><option value="special">特价专区</option><option value="group">拼团专场</option></select></label><label>标题<input name="title" required maxlength="100"></label><label>副标题<input name="subtitle" maxlength="100" placeholder="可留空，使用默认文案"></label><label>链接文字<input name="linkText" maxlength="30" value="更多"></label><label>素材 ID<input name="mediaAssetId" placeholder="从素材库复制"></label><label>跳转类型<select name="jumpType"><option value="none">无跳转</option><option value="product">商品</option><option value="category">分类</option><option value="url">网页链接</option></select></label><label>跳转目标<input name="jumpTarget" maxlength="200"></label><label>排序<input name="sort" type="number" value="0"></label><label class="checkbox"><input name="enabled" type="checkbox" checked>启用</label><button class="primary">保存首页模块</button></form>
-        <form class="card form-card" id="mediaForm"><h3>登记素材</h3><input type="hidden" name="replacesMediaAssetId"><p class="muted" id="mediaVersionHint">登录后可从这里选择小型图片或视频，由后台受控上传；单个文件不超过 4 MB。较大视频请先在 CloudBase 控制台上传，再粘贴文件 ID。替换文件请使用右侧"新建版本"，旧素材不会被覆盖。</p><label>素材名称<input name="name" required maxlength="100"></label><label>类型<select name="type"><option value="image">图片</option><option value="video">视频</option></select></label><label>来源<select name="source"><option value="client">甲方提供</option><option value="ai_generated">AI 生成</option><option value="demo">演示素材</option><option value="admin_upload">后台上传</option></select></label><label class="checkbox"><input name="temporary" type="checkbox">临时素材</label><span class="muted">适用端</span><label class="checkbox"><input name="targetPlatforms" type="checkbox" value="miniapp" checked>小程序</label><label class="checkbox"><input name="targetPlatforms" type="checkbox" value="web" checked>网页端</label><label>开始时间（可选）<input name="startAt" type="datetime-local"></label><label>结束时间（可选）<input name="endAt" type="datetime-local"></label><label>选择本地文件<input name="uploadFile" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime"></label><label>CloudBase 文件 ID<input name="fileId" placeholder="可粘贴已上传文件的 cloud://..." ></label><label>文件 MIME 类型<input name="mimeType" placeholder="自动读取；手工登记时填写 image/jpeg"></label><label>文件大小（字节）<input name="sizeBytes" type="number" min="0" value="0"></label><button class="primary">上传并登记素材</button></form>
-        <form class="card form-card" id="inventoryForm"><h3>库存调整</h3><p class="muted">每次提交必须携带新的幂等键，重复提交同一键不会重复变更库存。</p><label>仓库 ID<input name="warehouseId" required list="warehouseOptions"></label><label>SKU ID<input name="skuId" required list="skuOptions"></label><label>调整数量（正入库，负出库）<input name="change" type="number" required></label><label>调整原因<input name="reason" required maxlength="80"></label><button class="primary">提交库存调整</button></form>
-        <form class="card form-card" id="userPricingForm"><h3>用户价格身份</h3><p class="muted">企业审核通过后会自动成为 B 端；此处用于受控修正等级或企业归属。</p><label>用户 ID<input name="id" required></label><label>用户类型<select name="userType"><option value="c">C 端</option><option value="b">B 端</option></select></label><label>企业 ID<input name="organizationId" placeholder="B 端必填"></label><label>价格等级<input name="priceLevel" placeholder="例如 b_standard"></label><button class="primary">保存身份与价格等级</button></form>
-      </div>
+      <div class="hidden-forms"></div>
     </section>
   </main>
   <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
@@ -118,6 +46,13 @@
   </script>
   <script src="paging.js"></script>
   <script>window.PAGE_NAME = 'refunds';</script>
+  <script src="admin-page-registry.js"></script>
+  <script src="admin-forms.js"></script>
+  <script src="admin-shell.js"></script>
+  <script src="admin-tables.js"></script>
+  <script src="admin-page-summary.js"></script>
+  <script src="admin-order-guide.js"></script>
+  <script src="admin-operations-confirm.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

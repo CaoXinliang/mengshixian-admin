@@ -6,8 +6,10 @@ const vm = require('vm');
 const source = fs.readFileSync(path.resolve(__dirname, '../api-client.js'), 'utf8');
 function loadClient(cloudbase) {
   const session = new Map();
+  const persistent = new Map([['mengshixian_admin_token','stale-persistent-token']]);
   const window = {
     MENGSHIXIAN_ADMIN_CONFIG: { provider: 'cloudbase', envId: 'test-env', functionName: 'api' },
+    localStorage: { getItem: (key) => persistent.get(key) || '', setItem: (key, value) => persistent.set(key, value), removeItem: (key) => persistent.delete(key) },
     sessionStorage: { getItem: (key) => session.get(key) || '', setItem: (key, value) => session.set(key, value), removeItem: (key) => session.delete(key) },
     cloudbase
   };
@@ -43,6 +45,12 @@ async function run() {
     }
   });
   const result = await modernWindow.MengshixianAdminApi.call('health', {});
+  assert.equal(modernWindow.MengshixianAdminApi.getToken(), '', '旧的持久令牌不能继续作为登录态');
+  modernWindow.MengshixianAdminApi.setToken('current-tab-token');
+  assert.equal(modernWindow.sessionStorage.getItem('mengshixian_admin_token'), 'current-tab-token');
+  assert.equal(modernWindow.localStorage.getItem('mengshixian_admin_token'), '');
+  modernWindow.MengshixianAdminApi.clearSession();
+  assert.equal(modernWindow.MengshixianAdminApi.getToken(), '');
   assert.equal(result.service, 'api');
   assert.equal(calls, 1);
 

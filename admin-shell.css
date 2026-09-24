@@ -1,0 +1,52 @@
+/* Shared operation shell. The original blue palette remains the source of color. */
+.admin-shell{grid-template-columns:248px minmax(0,1fr)}
+.sidebar{padding:24px 16px 16px;background:var(--sidebar)}
+.sidebar .brand{padding:4px 8px 28px;color:#fff;text-decoration:none}
+.sidebar .brand strong{font-size:19px}
+.sidebar .brand small{color:#aebfd2;font-size:12px}
+.nav-caption{margin:0 8px 10px;color:#93a9c0}
+.sidebar nav{gap:5px}
+.sidebar nav .nav-parent{grid-template-columns:32px minmax(0,1fr) 14px;min-height:43px;margin:0;border-radius:9px;padding:7px 10px;color:#dce7f3;text-decoration:none}
+.nav-parent strong{font-size:14px;font-weight:650}
+.sidebar nav .nav-parent.is-active{background:#e9f2ff;color:var(--blue-dark);box-shadow:none}
+.sidebar nav .nav-parent:hover:not(.is-active){background:#29405c}
+.module-mark{background:transparent;font-size:19px;font-weight:400}
+.nav-parent.is-active .module-mark{background:transparent}
+.nav-children{margin:3px 0 9px 27px;padding-left:13px}
+.nav-children a{padding:8px 10px;font-size:13px}
+.nav-children a.is-active{background:#31547d;color:#fff}
+.sidebar-footer{display:grid;gap:8px;margin-top:auto;border-top:1px solid #3d5068;padding-top:16px}
+.sidebar .mode-link,.sidebar .logout{display:block;margin:0;border:1px solid #52657b;border-radius:8px;padding:9px 12px;background:transparent;color:#dce7f3;text-align:center;font-size:13px}
+.sidebar .logout:hover,.sidebar .mode-link:hover{background:#29405c}
+.workspace{padding:0 30px 48px}
+.workspace-head{max-width:none;min-height:77px;align-items:center;margin:0 -30px 27px;padding:15px 30px;border-bottom:1px solid var(--line);background:#fff}
+.header-title .eyebrow{margin:0;color:var(--muted);font-size:11px;letter-spacing:0}
+.header-title h2{font-size:20px;line-height:1.25}
+.workspace-actions{gap:12px}
+.header-search input{width:min(270px,24vw);padding:9px 13px;background:#f3f6f9;border-color:transparent}
+.header-search input:focus{background:#fff;border-color:var(--blue)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+.service-state,.admin-user{border:0;background:#f4f7fa;font-size:12px}
+.admin-user{max-width:360px;line-height:1.35;overflow-wrap:anywhere}
+.admin-account-logout{flex:none;padding:8px 12px;border:1px solid #b4cff6;border-radius:8px;background:#e9f2ff;color:var(--blue-dark);font-size:12px;font-weight:700;white-space:nowrap}
+.admin-account-logout:hover{background:#dcecff}
+.admin-account-logout:disabled{opacity:.6;cursor:wait}
+.service-state.is-error i{background:var(--danger)}
+.panel,.notice{max-width:1480px}
+.panel:not([data-panel="overview"]){padding:19px 20px 20px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:0 7px 22px rgba(22,61,108,.04)}
+.panel:not([data-panel="overview"])>.table-wrap{margin-top:11px}
+.page-intro{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;max-width:1480px;margin:0 auto 22px}
+.page-intro h1{font-size:25px;line-height:1.25;letter-spacing:-.02em;margin:0 0 6px}
+.page-intro p:last-child{margin:0;color:var(--muted);font-size:13px}
+.page-links{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:560px}
+.page-links a{padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:#fff;color:#5b7087;text-decoration:none;font-size:12px;white-space:nowrap}
+.page-links a[aria-current=page]{border-color:#b4cff6;background:var(--blue-soft);color:var(--blue-dark);font-weight:700}
+.page-links a:hover{border-color:var(--blue);color:var(--blue)}
+.panel>.table-wrap,.panel>.panel-tab-content>.table-wrap{background:#fff}
+.panel-tabs{background:#fff}
+.table-wrap{border-radius:11px}
+.table-wrap th{background:#f3f7f9;color:#526577}
+.table-wrap td{padding-top:15px;padding-bottom:15px}
+@media(max-width:950px){.admin-shell{grid-template-columns:210px minmax(0,1fr)}.sidebar{padding:18px 10px}.workspace{padding:0 18px 30px}.workspace-head{margin:0 -18px 20px;padding:15px 18px}.header-search input{width:180px}}
+@media(max-width:1100px){.page-intro{display:block}.page-links{justify-content:flex-start;max-width:none;margin-top:12px}}
+@media(max-width:680px){.admin-shell{display:block}.sidebar{position:static;height:auto;overflow:visible}.sidebar .brand{padding-bottom:12px}.sidebar nav{display:flex;overflow-x:auto}.sidebar .nav-group{flex:none}.sidebar nav .nav-parent{display:flex;white-space:nowrap}.sidebar .nav-children,.nav-caption,.sidebar-footer{display:none}.workspace-head{align-items:flex-start}.workspace-actions{width:100%;flex-wrap:wrap}.header-search input{width:100%}.header-search{flex:1;min-width:170px}}

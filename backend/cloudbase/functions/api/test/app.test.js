@@ -2,6 +2,8 @@ const assert = require('assert/strict');
 const { createApplication } = require('../app');
 const { expireReservations, expireGroups } = require('../lib/commerce');
 const { inventoryId } = require('../lib/transaction-ids');
+const { ROLE_PERMISSIONS } = require('../lib/permissions');
+const {hashPassword}=require('../lib/security');
 
 function createMemoryStore() {
   const data = new Map();
@@ -59,6 +61,9 @@ async function call(app, action, payload = {}) {
 
 async function run() {
   const store = createMemoryStore();
+  // Historical accounts are storage-boundary fixtures, not newly supported management roles.
+  const legacyRole=async data=>({ok:true,data:await store.create('admin_roles',data)});
+  const legacyUser=async ({password,...data})=>({ok:true,data:await store.create('admin_users',{...data,...hashPassword(password)})});
   const fixedClock = () => new Date('2026-09-07T12:00:00.000Z');
   let uploadedMedia;
   const app = createApplication({ store, getIdentity: () => ({ OPENID: 'openid-test' }), bootstrapToken: 'bootstrap-only-token', piiEncryptionKey: 'unit-test-pii-encryption-key', paymentVerifier: async (payload) => payload, paymentPreparer: async () => ({ timeStamp: '123', nonceStr: 'nonce', package: 'prepay_id=test', paySign: 'test-sign' }), refundVerifier: async (payload) => payload, mediaUrlResolver: async (fileIds) => Object.fromEntries(fileIds.map((fileId) => [fileId, `https://cdn.example.test/${encodeURIComponent(fileId)}`])), storageUploader: async (payload) => { uploadedMedia = payload; return 'cloud://test/uploads/manual.png'; }, demoMode: true, clock: fixedClock });
@@ -103,37 +108,62 @@ async function run() {
   const login = await call(app, 'admin.login', { username: 'owner', password: '0123456789ab' });
   assert.equal(login.ok, true);
   const adminToken = login.data.token;
+  const unchangedFinanceRole=await legacyRole({code:'finance_manager',name:'未显式授权的旧财务',status:'active'});
+  await legacyUser({username:'unchanged-finance',displayName:'旧财务',password:'legacy-finance-password',roleIds:[unchangedFinanceRole.data._id],status:'active'});
+  const unchangedFinance=await call(app,'admin.login',{username:'unchanged-finance',password:'legacy-finance-password'});
+  assert.equal((await call(app,'admin.orders.receipts.list',{adminToken:unchangedFinance.data.token,orderId:'private-order'})).error.code,'ADMIN_FORBIDDEN','旧财务默认权限不得自动扩展到收款');
+  const financeRole = await legacyRole({ code: 'finance_manager', name: '历史显式授权财务', permissions: [...ROLE_PERMISSIONS.finance_manager,'orders.read','receipts.read','receipts.write'], status: 'active' });
+  assert.equal(financeRole.ok, true);
+  await legacyUser({username:'receipt-finance',displayName:'历史收款员',password:'local-finance-test-only',roleIds:[financeRole.data._id],status:'active'});
+  const financeLogin = await call(app, 'admin.login', { username: 'receipt-finance', password: 'local-finance-test-only' });
+  const financeToken = financeLogin.data.token;
+  assert.equal((await call(app, 'admin.orders.list', { adminToken: financeToken })).ok, true, '财务人员须能从订单列表进入收款');
+  assert.equal((await call(app, 'admin.orders.transition', { adminToken: financeToken, id: 'missing', status: 'shipping' })).error.code, 'ADMIN_FORBIDDEN', '收款权限不应授权发货或改变订单状态');
+  assert.equal((await call(app, 'admin.pricingTargets.list', {})).ok, false, '价格对象列表必须登录后读取');
+  assert.equal((await call(app, 'admin.users.organizations', {})).ok, false, '客户企业选择列表必须登录');
+  assert.deepEqual((await call(app, 'admin.pricingTargets.list', { adminToken, scopeType: 'customer_type' })).data.rows.map((row) => row._id), ['c', 'b']);
+  const forbiddenLargeUpload = await call(app, 'admin.media.beginUpload', { adminToken: 'wrong', type: 'video', mimeType: 'video/mp4', fileName: 'x.mp4', sizeBytes: 5 * 1024 * 1024, sha256: '0'.repeat(64) });
+  assert.equal(forbiddenLargeUpload.error.code, 'ADMIN_SESSION_EXPIRED', '分段上传必须先检查管理员会话');
+  const unavailableLargeUpload = await call(app, 'admin.media.beginUpload', { adminToken, type: 'video', mimeType: 'video/mp4', fileName: 'x.mp4', sizeBytes: 5 * 1024 * 1024, sha256: '0'.repeat(64) });
+  assert.equal(unavailableLargeUpload.error.code, 'MEDIA_UPLOAD_UNAVAILABLE', '缺少服务端文件读取能力时不得开放分段上传');
   const initialReadiness = await call(app, 'admin.readiness', { adminToken });
   assert.equal(initialReadiness.data.counts.productsOnSale, 1, '运营就绪报告应返回已上架商品数量');
   assert.equal(initialReadiness.data.quoteAndOrderDataReady, false, '未配置价格和履约数据时不得宣称可报价下单');
-  const customRole = await call(app, 'admin.roles.upsert', { adminToken, code: 'catalog_auditor', name: '商品只读', permissions: ['catalog.read'], status: 'active' });
+  const customRole = await legacyRole({code:'catalog_auditor',name:'历史商品只读',permissions:['catalog.read'],status:'active'});
   assert.equal(customRole.ok, true);
-  const secondAdmin = await call(app, 'admin.adminUsers.upsert', { adminToken, username: 'catalog-reader', displayName: '商品查看员', password: '1234567890ab', roleIds: [customRole.data._id], status: 'active' });
+  const secondAdmin = await legacyUser({username:'catalog-reader',displayName:'历史商品查看员',password:'1234567890ab',roleIds:[customRole.data._id],status:'active'});
   assert.equal(secondAdmin.ok, true);
-  const adminWriterRole = await call(app, 'admin.roles.upsert', { adminToken, code: 'admin_writer', name: '管理员维护员', permissions: ['admin.read', 'admin.write'], status: 'active' });
+  const adminWriterRole = await legacyRole({code:'admin_writer',name:'历史管理员维护员',permissions:['admin.read','admin.write'],status:'active'});
   assert.equal(adminWriterRole.ok, true);
-  const adminWriter = await call(app, 'admin.adminUsers.upsert', { adminToken, username: 'admin-writer', displayName: '管理员维护员', password: '1234567890ab', roleIds: [adminWriterRole.data._id], status: 'active' });
+  const adminWriter = await legacyUser({username:'admin-writer',displayName:'历史管理员维护员',password:'1234567890ab',roleIds:[adminWriterRole.data._id],status:'active'});
   assert.equal(adminWriter.ok, true);
   const adminWriterLogin = await call(app, 'admin.login', { username: 'admin-writer', password: '1234567890ab' });
   assert.equal(adminWriterLogin.ok, true);
   const superAdminEscalation = await call(app, 'admin.adminUsers.upsert', { adminToken: adminWriterLogin.data.token, username: 'forbidden-super', displayName: '非法提权', password: '1234567890ab', roleIds: [bootstrap.data.admin.roleIds[0]], status: 'active' });
-  assert.equal(superAdminEscalation.error.code, 'ADMIN_ROLE_PROTECTED', '管理员维护权限不得授予超级管理员角色');
+  assert.equal(superAdminEscalation.error.code, 'ADMIN_FORBIDDEN', '只有超级管理员可以管理账号');
   const superAdminDemotion = await call(app, 'admin.adminUsers.upsert', { adminToken: adminWriterLogin.data.token, id: bootstrap.data.admin.id, username: 'owner', displayName: '项目管理员', roleIds: [adminWriterRole.data._id], status: 'active' });
-  assert.equal(superAdminDemotion.error.code, 'ADMIN_ROLE_PROTECTED', '管理员维护权限不得移除超级管理员角色');
+  assert.equal(superAdminDemotion.error.code, 'ADMIN_FORBIDDEN', '管理员维护权限不得移除超级管理员角色');
   const wildcardRole = await call(app, 'admin.roles.upsert', { adminToken: adminWriterLogin.data.token, code: 'wildcard_role', name: '全权角色', permissions: ['*'], status: 'active' });
-  assert.equal(wildcardRole.error.code, 'VALIDATION_ERROR', '自定义角色不得包含通配或未定义权限点');
+  assert.equal(wildcardRole.error.code, 'ADMIN_FORBIDDEN', '非超级管理员不得管理角色');
   const superRoleRewrite = await call(app, 'admin.roles.upsert', { adminToken: adminWriterLogin.data.token, id: bootstrap.data.admin.roleIds[0], code: 'hacked_super', name: '越权改写', permissions: ['audit.read'], status: 'active' });
-  assert.equal(superRoleRewrite.error.code, 'ADMIN_ROLE_PROTECTED', '超级管理员角色不得按 id 传入新编码绕过保护被改写');
+  assert.equal(superRoleRewrite.error.code, 'ADMIN_FORBIDDEN', '非超级管理员不得通过旧入口改写角色');
   const sneakyRole = await call(app, 'admin.roles.upsert', { adminToken: adminWriterLogin.data.token, code: 'sneaky_role', name: '越权角色', permissions: ['refunds.write'], status: 'active' });
-  assert.equal(sneakyRole.ok, true);
-  const sneakyAssign = await call(app, 'admin.adminUsers.upsert', { adminToken: adminWriterLogin.data.token, username: 'sneaky-user', displayName: '越权分配', password: '1234567890ab', roleIds: [sneakyRole.data._id], status: 'active' });
-  assert.equal(sneakyAssign.error.code, 'ADMIN_ROLE_PROTECTED', '不得授予超出自身权限范围的角色');
+  assert.equal(sneakyRole.error.code, 'ADMIN_FORBIDDEN');
+  const sneakyAssign = await call(app, 'admin.adminUsers.upsert', { adminToken: adminWriterLogin.data.token, username: 'sneaky-user', displayName: '越权分配', password: '1234567890ab', roleIds: [customRole.data._id], status: 'active' });
+  assert.equal(sneakyAssign.error.code, 'ADMIN_FORBIDDEN', '不得通过旧入口分配角色');
   const subsetRole = await call(app, 'admin.roles.upsert', { adminToken: adminWriterLogin.data.token, code: 'session_reader', name: '会话只读', permissions: ['admin.read'], status: 'active' });
-  assert.equal(subsetRole.ok, true);
-  const subsetAssign = await call(app, 'admin.adminUsers.upsert', { adminToken: adminWriterLogin.data.token, username: 'session-reader', displayName: '会话查看员', password: '1234567890ab', roleIds: [subsetRole.data._id], status: 'active' });
-  assert.equal(subsetAssign.ok, true, '自身权限范围内的角色必须仍可正常分配');
+  assert.equal(subsetRole.error.code, 'ADMIN_FORBIDDEN');
+  const subsetAssign = await call(app, 'admin.adminUsers.upsert', { adminToken: adminWriterLogin.data.token, username: 'session-reader', displayName: '会话查看员', password: '1234567890ab', roleIds: [adminWriterRole.data._id], status: 'active' });
+  assert.equal(subsetAssign.error.code, 'ADMIN_FORBIDDEN', '即使角色未超出自身权限，非超管也不能管理工作人员');
   const secondLogin = await call(app, 'admin.login', { username: 'catalog-reader', password: '1234567890ab' });
+  assert.equal((await call(app, 'admin.pricingTargets.list', { adminToken: secondLogin.data.token, scopeType: 'user' })).error.code, 'ADMIN_FORBIDDEN', '只有商品读取权限不能查询价格客户对象');
+  assert.equal((await call(app, 'admin.users.organizations', { adminToken: secondLogin.data.token })).error.code, 'ADMIN_FORBIDDEN', '客户企业选择列表需要客户读取权限');
   assert.equal(secondLogin.ok, true);
+  for (const action of ['admin.orders.receipts.list', 'admin.orders.receipts.record']) {
+    assert.equal((await call(app, action, { orderId: 'private-order' })).error.code, 'VALIDATION_ERROR', '收款接口未登录不能访问');
+    assert.equal((await call(app, action, { adminToken: 'invalid-session', orderId: 'private-order' })).error.code, 'ADMIN_SESSION_EXPIRED', '失效会话不能查看或登记收款');
+    assert.equal((await call(app, action, { adminToken: secondLogin.data.token, orderId: 'private-order' })).error.code, 'ADMIN_FORBIDDEN', '商品读取权限不能查看或登记收款，且不得泄露订单是否存在');
+  }
   const secondAdminCategories = await call(app, 'admin.categories.list', { adminToken: secondLogin.data.token });
   assert.equal(secondAdminCategories.ok, true, '受限管理员应按角色获得只读商品权限');
   const rejectedPasswordChange = await call(app, 'admin.password.change', { adminToken: secondLogin.data.token, currentPassword: 'wrong-password', newPassword: 'next-password-2026' });
@@ -166,6 +196,17 @@ async function run() {
   assert.equal(invalidContentSchedule.error.code, 'VALIDATION_ERROR', '后台内容结束时间不得早于开始时间');
   const missingJumpTarget = await call(app, 'admin.homeSections.upsert', { adminToken, moduleType: 'news', title: '缺少目标', jumpType: 'product' });
   assert.equal(missingJumpTarget.error.code, 'JUMP_TARGET_REQUIRED', '非 none 跳转必须填写目标');
+  await store.create('products', { _id: 'content-target-test', name: '首页目标测试', status: 'draft', audienceType: 'all' });
+  const targetBanner = { adminToken, title: '目标状态测试', jumpType: 'product', jumpTarget: 'content-target-test' };
+  assert.equal((await call(app, 'admin.banners.upsert', targetBanner)).error.code, 'CONTENT_TARGET_UNAVAILABLE');
+  assert.equal((await call(app, 'admin.banners.upsert', { ...targetBanner, jumpTarget: 'missing-target' })).error.code, 'CONTENT_TARGET_NOT_FOUND');
+  const draftBanner = await call(app, 'admin.banners.upsert', { ...targetBanner, enabled: false });
+  assert.equal(draftBanner.ok, true, 'Unavailable existing target can remain a disabled draft');
+  await store.update('products', 'content-target-test', { status: 'on_sale' });
+  assert.equal((await call(app, 'admin.banners.upsert', { ...targetBanner, id: draftBanner.data._id, enabled: true })).ok, true);
+  assert.ok((await call(app, 'content.banners', {})).data.rows.some((row) => row._id === draftBanner.data._id));
+  await store.update('products', 'content-target-test', { status: 'off_sale' });
+  assert.ok(!(await call(app, 'content.banners', {})).data.rows.some((row) => row._id === draftBanner.data._id), 'Off-sale product must disappear from public homepage targets');
   const jumpUrlSection = await call(app, 'admin.homeSections.upsert', { adminToken, moduleType: 'group', title: '外链跳转', jumpType: 'url', jumpTarget: 'https://example.com/activity', sort: 3 });
   assert.equal(jumpUrlSection.ok, true);
   const publicJumpSections = await call(app, 'content.homeSections', { platform: 'miniapp' });
@@ -207,7 +248,7 @@ async function run() {
   assert.equal(managedMediaVersion.data.previousMediaAssetId, managedMedia.data._id, '新版本必须保留上一版本引用');
   const overwriteMedia = await call(app, 'admin.media.upsert', { adminToken, id: managedMedia.data._id, name: '错误覆盖', type: 'image', source: 'ai_generated', temporary: true, fileId: 'cloud://test/category-overwrite.jpg', mimeType: 'image/jpeg', sizeBytes: 1024 });
   assert.equal(overwriteMedia.error.code, 'MEDIA_VERSION_REQUIRED', '已有素材不得直接覆盖云端文件');
-  const managedProduct = await call(app, 'admin.products.upsert', { adminToken, name: '测试商品', categoryId: managedCategory.data._id, frozenTemperature: '-18℃' });
+  const managedProduct = await call(app, 'admin.products.upsert', { adminToken, spuCode: 'MANAGED-001', name: '测试商品', categoryId: managedCategory.data._id, frozenTemperature: '-18℃' });
   const managedVideo = await call(app, 'admin.media.upsert', { adminToken, name: '商品详情临时视频', assetKey: 'product-video-test', type: 'video', source: 'ai_generated', temporary: true, fileId: 'cloud://test/product-video.mp4', mimeType: 'video/mp4', sizeBytes: 2048 });
   assert.equal(managedVideo.ok, true);
   const productMediaAssociation = await call(app, 'admin.productMedia.upsert', { adminToken, productId: managedProduct.data._id, mediaAssetId: managedVideo.data._id, mediaType: 'video', role: 'detail', sort: 0, enabled: true });
@@ -218,12 +259,79 @@ async function run() {
   assert.equal(listedProductMedia.data.rows.length, 1, '后台商品媒体列表必须返回已关联视频');
   const wrongProductMediaType = await call(app, 'admin.productMedia.upsert', { adminToken, productId: managedProduct.data._id, mediaAssetId: managedVideo.data._id, mediaType: 'image', role: 'cover' });
   assert.equal(wrongProductMediaType.error.code, 'MEDIA_TYPE_INVALID', '商品媒体关联不得把视频素材登记为图片');
-  const managedSku = await call(app, 'admin.skus.upsert', { adminToken, productId: managedProduct.data._id, specName: '测试规格', packageUnit: '1件/10包', status: 'draft' });
+  const managedSku = await call(app, 'admin.skus.upsert', { adminToken, productId: managedProduct.data._id, skuCode: 'MANAGED-SKU-001', specName: '测试规格', packageUnit: '1件/10包', status: 'draft' });
   const prematurePublish = await call(app, 'admin.products.setStatus', { adminToken, id: managedProduct.data._id, status: 'on_sale' });
-  assert.equal(prematurePublish.error.code, 'PRODUCT_NOT_READY');
+  assert.equal(prematurePublish.error.code, 'CATALOG_REVIEW_REQUIRED');
+  const earlyReview = await call(app, 'admin.products.review', { adminToken, id: managedProduct.data._id });
+  assert.equal(earlyReview.data.ready, false);
+  assert.ok(earlyReview.data.issues.some((issue) => issue.includes('主图')));
+  const skuWithoutPrice = await call(app, 'admin.skus.setStatus', { adminToken, id: managedSku.data._id, status: 'on_sale' });
+  assert.equal(skuWithoutPrice.error.code, 'PRODUCT_NOT_READY', '无真实价格的规格不得启用销售');
+  const managedPrice = await call(app, 'admin.prices.upsert', { adminToken, skuId: managedSku.data._id, scopeType: 'public', amountCent: 4600, status: 'active' });
+  assert.equal(managedPrice.ok, true);
   const publishSku = await call(app, 'admin.skus.setStatus', { adminToken, id: managedSku.data._id, status: 'on_sale' });
-  assert.equal(publishSku.ok, true);
-  const publishProduct = await call(app, 'admin.products.setStatus', { adminToken, id: managedProduct.data._id, status: 'on_sale' });
+  assert.equal(publishSku.error.code, 'PRODUCT_NOT_READY', '商品未通过完整核对前，规格不得绕过核对直接上架');
+  assert.equal((await store.getById('product_skus', managedSku.data._id)).status, 'draft', '被拒后不得部分写入');
+  const noCoverPublish = await call(app, 'admin.products.setStatus', { adminToken, id: managedProduct.data._id, status: 'on_sale' });
+  assert.equal(noCoverPublish.error.code, 'CATALOG_REVIEW_REQUIRED', '必须经过独立核对页发布');
+  const addManagedCover = await call(app, 'admin.products.upsert', { adminToken, id: managedProduct.data._id, name: '测试商品', categoryId: managedCategory.data._id, coverMediaId: managedMedia.data._id });
+  assert.equal(addManagedCover.ok, true);
+  const missingStockReview = await call(app, 'admin.products.review', { adminToken, id: managedProduct.data._id });
+  assert.equal(missingStockReview.data.ready, false);
+  assert.match(missingStockReview.data.issues.join('；'), /可售库存/);
+  await store.create('warehouses', { _id: 'review-test-warehouse', name: '本地验收仓', status: 'active' });
+  await store.create('inventory', { skuId: managedSku.data._id, warehouseId: 'review-test-warehouse', available: 2 });
+  const missingDeliveryReview = await call(app, 'admin.products.review', { adminToken, id: managedProduct.data._id });
+  assert.equal(missingDeliveryReview.data.ready, false);
+  assert.match(missingDeliveryReview.data.issues.join('；'), /配送/);
+  await store.create('delivery_areas', { _id: 'review-area', name: '本地验收区', warehouseIds: ['review-test-warehouse'], regionCodes: ['TEST-REVIEW'], status: 'active' });
+  await store.create('freight_rules', { _id: 'review-freight', name: '本地测试运费', deliveryAreaId: 'review-area', warehouseId: 'review-test-warehouse', baseFeeCent: 500, status: 'active' });
+  await store.create('delivery_slots', { _id: 'review-slot', name: '本地测试时段', deliveryAreaId: 'review-area', warehouseId: 'review-test-warehouse', startTime: '09:00', endTime: '12:00', status: 'active' });
+  const reviewManaged = await call(app, 'admin.products.review', { adminToken, id: managedProduct.data._id });
+  assert.equal(reviewManaged.data.ready, true, reviewManaged.data.issues.join('；'));
+  await store.update('prices', managedPrice.data._id, { channel: 'web' });
+  const webOnlyReview = await call(app, 'admin.products.review', { adminToken, id: managedProduct.data._id });
+  assert.equal(webOnlyReview.data.ready, false, 'Web-only price cannot support personal miniapp publication');
+  assert.match(webOnlyReview.data.issues.join('；'), /个人顾客/);
+  const oldPricePublish = await call(app, 'admin.products.publishReviewed', { adminToken, id: managedProduct.data._id, reviewToken: reviewManaged.data.reviewToken });
+  assert.equal(oldPricePublish.error.code, 'CATALOG_REVIEW_STALE', 'Price channel changes invalidate review even without timestamp changes');
+  await store.update('prices', managedPrice.data._id, { channel: 'all' });
+  const originalTransaction = store.runTransaction;
+  const originalSku = await store.getById('product_skus', managedSku.data._id);
+  const originalProductStatus = (await store.getById('products', managedProduct.data._id)).status;
+  store.runTransaction = async function (work) {
+    await store.update('product_skus', managedSku.data._id, { status: 'off_sale' });
+    return originalTransaction.call(store, work);
+  };
+  const changedSkuPublish = await call(app, 'admin.products.publishReviewed', { adminToken, id: managedProduct.data._id, reviewToken: reviewManaged.data.reviewToken });
+  store.runTransaction = originalTransaction;
+  assert.equal(changedSkuPublish.error.code, 'CATALOG_REVIEW_STALE', 'Concurrent SKU change must abort publication');
+  assert.equal((await store.getById('products', managedProduct.data._id)).status, originalProductStatus);
+  await store.update('product_skus', managedSku.data._id, { status: originalSku.status, packageUnit: '修改包装' });
+  const packagingChanged = await call(app, 'admin.products.publishReviewed', { adminToken, id: managedProduct.data._id, reviewToken: reviewManaged.data.reviewToken });
+  assert.equal(packagingChanged.error.code, 'CATALOG_REVIEW_STALE', 'Packaging changes must invalidate review without relying on timestamp');
+  await store.update('product_skus', managedSku.data._id, { packageUnit: originalSku.packageUnit });
+  const reviewInventory = await store.findOne('inventory', { skuId: managedSku.data._id });
+  for (const [collection, id, patch] of [
+    ['prices', managedPrice.data._id, { amountCent: 4700 }],
+    ['inventory', reviewInventory._id, { available: 0 }],
+    ['freight_rules', 'review-freight', { status: 'disabled' }],
+    ['delivery_slots', 'review-slot', { status: 'disabled' }]
+  ]) {
+    const before = await store.getById(collection, id);
+    store.runTransaction = async function (work) {
+      await store.update(collection, id, patch);
+      return originalTransaction.call(store, work);
+    };
+    const raced = await call(app, 'admin.products.publishReviewed', { adminToken, id: managedProduct.data._id, reviewToken: reviewManaged.data.reviewToken });
+    store.runTransaction = originalTransaction;
+    assert.equal(raced.error.code, 'CATALOG_REVIEW_STALE', `Concurrent ${collection} changes must abort publication`);
+    assert.equal((await store.getById('products', managedProduct.data._id)).status, originalProductStatus);
+    await store.update(collection, id, before);
+  }
+  const stalePublish = await call(app, 'admin.products.publishReviewed', { adminToken, id: managedProduct.data._id, reviewToken: earlyReview.data.reviewToken });
+  assert.equal(stalePublish.error.code, 'CATALOG_REVIEW_STALE');
+  const publishProduct = await call(app, 'admin.products.publishReviewed', { adminToken, id: managedProduct.data._id, reviewToken: reviewManaged.data.reviewToken });
   assert.equal(publishProduct.ok, true);
   const editedProduct = await call(app, 'admin.products.upsert', { adminToken, id: managedProduct.data._id, name: '测试商品（更新）', categoryId: managedCategory.data._id, frozenTemperature: '-18℃' });
   assert.equal(editedProduct.data.status, 'on_sale', '未提交状态字段的商品编辑不得把已上架商品降回草稿');
@@ -253,7 +361,7 @@ async function run() {
   assert.equal(area.ok, true);
   const deliveryOptions = await call(app, 'delivery.options');
   assert.equal(deliveryOptions.ok, true);
-  assert.equal(deliveryOptions.data.warehouses[0]._id, warehouse.data._id, '公开配送选项必须返回启用仓库事实');
+  assert.ok(deliveryOptions.data.warehouses.some((item) => item._id === warehouse.data._id), '公开配送选项必须包含启用仓库事实');
   const freight = await call(app, 'admin.freightRules.upsert', { adminToken, name: '测试运费', deliveryAreaId: area.data._id, warehouseId: warehouse.data._id, baseFeeCent: 800, freeThresholdCent: 10000, status: 'active' });
   assert.equal(freight.ok, true, JSON.stringify(freight));
   const deliverySlot = await call(app, 'admin.deliverySlots.upsert', { adminToken, name: '上午配送', deliveryAreaId: area.data._id, warehouseId: warehouse.data._id, startTime: '09:00', endTime: '12:00', status: 'active' });
@@ -305,13 +413,18 @@ async function run() {
   const demoOrder = await call(app, 'orders.create', { idempotencyKey: 'c-demo-order', addressId: address.data.address._id, warehouseId: warehouse.data._id, items: [{ skuId: 'sku-1', quantity: 1 }], paymentMethod: 'demo' });
   assert.equal(demoOrder.data.order.paymentStatus, 'demo_not_required', '演示订单不得伪造已支付状态');
   assert.equal(demoOrder.data.order.status, 'pending_confirmation', '演示订单仍应走库存预占与待确认状态');
+  const demoOrderBeforeDelivery = await store.findOne('orders', { _id: demoOrder.data.order._id });
+  assert.equal(demoOrderBeforeDelivery.createdAt, fixedClock().toISOString(), '订单时间必须保存为带时区的 ISO 时间');
   const listedOrders = await call(app, 'orders.list', { page: 1, pageSize: 10 });
   const listedDemoOrder = listedOrders.data.rows.find((item) => item._id === demoOrder.data.order._id);
   assert.deepEqual(listedDemoOrder.items.map((item) => ({ productNameSnapshot: item.productNameSnapshot, specSnapshot: item.specSnapshot, quantity: item.quantity })), [{ productNameSnapshot: '测试虾仁', specSnapshot: '500克', quantity: 1 }], '订单列表必须返回商品和规格快照，供客户端展示订单摘要');
-  for (const status of ['picking', 'shipping', 'delivered']) {
+  for (const status of ['picking', 'shipping']) {
     const transitioned = await call(app, 'admin.orders.transition', { adminToken, id: demoOrder.data.order._id, status });
     assert.equal(transitioned.ok, true, `演示订单应能进入${status}状态`);
   }
+  assert.equal((await call(app, 'admin.orders.transition', { adminToken, id: demoOrder.data.order._id, status: 'completed' })).error.code, 'ORDER_STATUS_TRANSITION_INVALID', '后台不能跳过送达与顾客确认，直接完成订单');
+  assert.equal((await store.findOne('inventory_reservations', { orderId: demoOrder.data.order._id })).status, 'reserved', '后台拒绝直接完成时不得改动库存预占');
+  assert.equal((await call(app, 'admin.orders.transition', { adminToken, id: demoOrder.data.order._id, status: 'delivered' })).ok, true, '后台应标记订单送达');
   const completedDemoOrder = await call(app, 'orders.complete', { id: demoOrder.data.order._id });
   assert.equal(completedDemoOrder.data.order.status, 'completed', '顾客确认收货后演示订单必须完成');
   assert.equal(completedDemoOrder.data.idempotent, false, '首次确认收货必须执行库存收口');
@@ -323,18 +436,22 @@ async function run() {
   assert.deepEqual({ onHand: inventoryAfterDemoComplete.onHand, reserved: inventoryAfterDemoComplete.reserved, available: inventoryAfterDemoComplete.available }, { onHand: 19, reserved: 0, available: 19 }, '演示订单确认收货必须在事务中更新可售库存');
   const demoConsumptionLedger = await store.findOne('inventory_ledger', { referenceId: demoOrder.data.order._id, reason: 'order_complete_consume' });
   assert.equal(demoConsumptionLedger.change, -1, '演示订单确认收货必须留下库存扣减流水');
+  assert.equal((await call(app, 'admin.orders.transition', { adminToken, id: demoOrder.data.order._id, status: 'shipping' })).error.code, 'ORDER_STATUS_TRANSITION_INVALID', '已完成订单不能回退到配送中');
   const repeatedAdjustment = await call(app, 'admin.inventory.adjust', { adminToken, warehouseId: warehouse.data._id, skuId: 'sku-1', change: 20, reason: 'initial_stock', idempotencyKey: 'inventory-initial-1' });
   assert.equal(repeatedAdjustment.data.idempotent, true, '相同库存幂等键不能重复调整');
 
-  const businessApplication = await call(app, 'auth.applyBusiness', { companyName: '测试餐饮有限公司', unifiedCode: '91340100TEST000001', contactName: '采购员', contactPhone: '13900139000' });
+  const businessApplication = await call(app, 'auth.applyBusiness', { companyName: '测试餐饮企业', storeName: '测试餐饮门店', storeAddress: '测试路1号', mainBusinessType: 'restaurant', unifiedCode: '123456789012345678', storefrontMediaId: 'cloud://test/storefront.jpg', businessLicenseMediaId: 'cloud://test/license.jpg', contactName: '采购员', contactPhone: '13900139000' });
   assert.equal(businessApplication.ok, true);
   assert.equal(Object.hasOwn(businessApplication.data.application, 'contactPhoneCiphertext'), false, '企业申请响应不得返回手机号密文');
   const pendingBusinessUser = await call(app, 'auth.me');
   assert.equal(pendingBusinessUser.data.user.businessStatus, 'pending', '企业申请后登录用户必须能看到待审核状态');
   const storedApplication = await store.findOne('business_applications', { _id: businessApplication.data.application._id });
   assert.equal(Object.hasOwn(storedApplication, 'contactPhone'), false, '企业申请不得保存明文联系人手机号');
+  assert.equal(storedApplication.companyName, '测试餐饮企业', '企业申请必须保存前端提交的企业名称');
+  assert.equal(storedApplication.unifiedCode, '123456789012345678', '企业申请必须保存统一社会信用代码供审核建档');
   const approvedBusiness = await call(app, 'admin.businessApplications.review', { adminToken, id: businessApplication.data.application._id, decision: 'approved', priceLevel: 'b_standard' });
   assert.equal(approvedBusiness.ok, true);
+  assert.equal(approvedBusiness.data.organization.name, '测试餐饮企业', '审核建档必须使用申请中的企业名称');
   const businessUser = await call(app, 'auth.me');
   assert.equal(businessUser.data.user.userType, 'b', '企业审核通过后用户必须切换为 B 端');
   assert.equal(businessUser.data.user.businessStatus, 'approved', '企业审核通过后登录用户必须看到已通过状态');
@@ -344,7 +461,7 @@ async function run() {
   assert.equal((await call(app, 'cart.upsert', { skuId: 'sku-b-only', quantity: 1 })).ok, true, 'B 端应能把 B 端专享商品加入购物车');
   assert.equal((await call(app, 'checkout.quote', { addressId: address.data.address._id, warehouseId: warehouse.data._id, items: [{ skuId: 'sku-b-only', quantity: 1 }] })).ok, true, 'B 端应能为 B 端专享商品取得报价');
   assert.equal((await call(app, 'checkout.quote', { addressId: address.data.address._id, warehouseId: warehouse.data._id, items: [{ skuId: 'sku-c-only', quantity: 1 }] })).error.code, 'PRODUCT_NOT_AVAILABLE', 'B 端不得为 C 端专享商品取得报价');
-  const repeatedBusinessApplication = await call(app, 'auth.applyBusiness', { companyName: '重复申请公司', unifiedCode: '91340100TEST000002', contactName: '采购员', contactPhone: '13800138000' });
+  const repeatedBusinessApplication = await call(app, 'auth.applyBusiness', { companyName: '重复申请企业', storeName: '重复申请门店', storeAddress: '测试路2号', mainBusinessType: 'retail', unifiedCode: '123456789012345679', storefrontMediaId: 'cloud://test/storefront-2.jpg', businessLicenseMediaId: 'cloud://test/license-2.jpg', contactName: '采购员', contactPhone: '13800138000' });
   assert.equal(repeatedBusinessApplication.error.code, 'BUSINESS_APPLICATION_NOT_NEEDED', '已审核 B 端账号不能重复提交企业申请');
   const createdOrder = await call(app, 'orders.create', { idempotencyKey: 'order-1', addressId: address.data.address._id, warehouseId: warehouse.data._id, deliverySlotId: deliverySlot.data._id, items: [{ skuId: 'sku-1', quantity: 2 }], paymentMethod: 'offline' });
   assert.equal(createdOrder.ok, true);
@@ -451,19 +568,71 @@ async function run() {
   const stage = await call(app, 'admin.imports.stage', {
     adminToken,
     sourceFile: 'sales-sheet-20260907',
-    rows: [{ sourceRowNo: 2, source: { id: 1001, name: '测试鱼丸', category: '丸滑类', unit: '1件/10包/500克' }, parsed: { name: '测试鱼丸', categoryName: '丸滑类', specName: '500克', packageUnit: '1件/10包/500克' }, mappingWarnings: ['价格未确认'] }]
+    rows: [{ sourceRowNo: 2, source: { id: 1001, name: '测试鱼丸', category: '丸滑类', unit: '1件/10包/500克' }, parsed: { productCode: 'FISHBALL-001', skuCode: 'FISHBALL-500G', name: '测试鱼丸', categoryName: '丸滑类', specName: '500克', packageUnit: '1件/10包/500克' }, mappingWarnings: ['价格未确认'] }]
   });
   assert.equal(stage.ok, true);
+  assert.equal(stage.data.staged[0].status, 'staged');
+  const sameCodeOtherFile = await call(app, 'admin.imports.stage', { adminToken, sourceFile: 'another-file.csv', rows: [{ sourceRowNo: 9, parsed: { productCode: 'FISHBALL-001', skuCode: 'FISHBALL-500G', name: '测试鱼丸', categoryName: '丸滑类', specName: '500克' } }] });
+  assert.equal(sameCodeOtherFile.data.staged[0].status, 'already_staged', '跨文件重试由规格编码识别，不能依赖文件名');
+  const crossProductPreview = await call(app, 'admin.imports.preview', { adminToken, rows: [{ sourceRowNo: 5, parsed: { productCode: 'OTHER-001', skuCode: 'FISHBALL-500G', name: '另一商品', categoryName: '丸滑类', specName: '500克' } }] });
+  assert.equal(crossProductPreview.data.rows[0].status, 'invalid', '同一规格编码不得关联另一商品编码');
+  const secondSkuStage = await call(app, 'admin.imports.stage', { adminToken, sourceFile: 'another-file.csv', rows: [{ sourceRowNo: 10, parsed: { productCode: 'FISHBALL-001', skuCode: 'FISHBALL-1KG', name: '测试鱼丸', categoryName: '丸滑类', specName: '1千克', packageUnit: '1袋' } }] });
+  assert.equal(secondSkuStage.data.staged[0].status, 'staged');
   const approved = await call(app, 'admin.imports.approve', { adminToken, id: stage.data.staged[0].id });
   assert.equal(approved.ok, true);
-  const activated = await call(app, 'admin.imports.activateBatch', { adminToken, ids: [stage.data.staged[0].id] });
+  const secondApproved = await call(app, 'admin.imports.approve', { adminToken, id: secondSkuStage.data.staged[0].id });
+  assert.equal(secondApproved.data.productId, approved.data.productId, '同一商品编码的不同规格必须共用商品');
+  assert.notEqual(secondApproved.data.skuId, approved.data.skuId);
+  const duplicateSkuOwner = await call(app, 'admin.skus.upsert', { adminToken, productId: approved.data.productId, skuCode: 'FISHBALL-500G', specName: '重复规格' });
+  assert.equal(duplicateSkuOwner.error.code, 'CATALOG_CODE_DUPLICATE');
+  const premature = await call(app, 'admin.imports.activateBatch', { adminToken, ids: [stage.data.staged[0].id] });
+  assert.equal(premature.error.code, 'IMPORT_REVIEW_REQUIRED', '批量上架入口必须停用');
+  const importedDraft = await store.findOne('products', { _id: approved.data.productId });
+  const importedSkuDraft = await store.findOne('product_skus', { _id: approved.data.skuId });
+  const importedCategoryDraft = await store.findOne('categories', { _id: importedDraft.categoryId });
+  assert.equal(importedDraft.status, 'draft');
+  assert.equal(importedSkuDraft.status, 'draft');
+  assert.equal(importedCategoryDraft.status, 'draft');
+  const unfinishedReview = await call(app, 'admin.products.review', { adminToken, id: importedDraft._id });
+  assert.equal(unfinishedReview.data.ready, false, '缺价格/图片必须保留待补齐草稿');
+  const wrongSkuMedia = await call(app, 'admin.productMedia.linkByCode', { adminToken, productCode: 'FISHBALL-001', skuCode: 'MANAGED-SKU-001', mediaAssetId: managedMedia.data._id, role: 'detail' });
+  assert.equal(wrongSkuMedia.error.code, 'SKU_PRODUCT_MISMATCH', '规格编码跨商品关联素材必须拒绝');
+  const pngBytes = require('node:fs').readFileSync(require('node:path').resolve(__dirname, '../../../../../assets/logo.png'));
+  const importUpload = await call(app, 'admin.media.upload', { adminToken, type: 'image', fileName: '本地流程测试.png', mimeType: 'image/png', sizeBytes: pngBytes.length, contentBase64: pngBytes.toString('base64') });
+  assert.equal(importUpload.ok, true);
+  const importAsset = await call(app, 'admin.media.upsert', { adminToken, name: '流程测试主图', type: 'image', source: 'demo', temporary: true, fileId: importUpload.data.fileId, mimeType: 'image/png', sizeBytes: pngBytes.length });
+  assert.equal(importAsset.ok, true);
+  const linkedCover = await call(app, 'admin.productMedia.linkByCode', { adminToken, productCode: 'FISHBALL-001', mediaAssetId: importAsset.data._id, role: 'cover' });
+  assert.equal(linkedCover.ok, true, '素材库图片应按商品编码成为主图');
+  assert.equal((await call(app, 'admin.categories.upsert', { adminToken, id: importedCategoryDraft._id, name: importedCategoryDraft.name, status: 'enabled' })).ok, true);
+  assert.equal((await call(app, 'admin.prices.upsert', { adminToken, skuId: importedSkuDraft._id, scopeType: 'public', scopeId: '', channel: 'all', amountCent: 1990, status: 'active' })).ok, true);
+  const secondSkuDraft = await store.findOne('product_skus', { _id: secondApproved.data.skuId });
+  const secondSkuMissingPrice = await call(app, 'admin.products.review', { adminToken, id: importedDraft._id });
+  assert.equal(secondSkuMissingPrice.data.ready, false, '任一销售规格缺价格都不能发布');
+  assert.equal((await call(app, 'admin.prices.upsert', { adminToken, skuId: secondSkuDraft._id, scopeType: 'public', scopeId: '', channel: 'all', amountCent: 2990, status: 'active' })).ok, true);
+  for (const sku of [importedSkuDraft, secondSkuDraft]) assert.equal((await call(app, 'admin.inventory.adjust', { adminToken, skuId: sku._id, warehouseId: 'review-test-warehouse', change: 2, reason: '仅本地测试补货', idempotencyKey: `import-stock-${sku._id}` })).ok, true);
+  const importReview = await call(app, 'admin.products.review', { adminToken, id: importedDraft._id });
+  assert.equal(importReview.data.ready, true);
+  const activated = await call(app, 'admin.products.publishReviewed', { adminToken, id: importedDraft._id, reviewToken: importReview.data.reviewToken });
   assert.equal(activated.ok, true);
-  assert.equal(activated.data.activated.length, 1);
-  assert.equal((await store.findOne('categories', { _id: activated.data.activated[0].categoryId })).status, 'enabled');
-  assert.equal((await store.findOne('products', { _id: activated.data.activated[0].productId })).status, 'on_sale');
-  assert.equal((await store.findOne('product_skus', { _id: activated.data.activated[0].skuId })).status, 'on_sale');
+  assert.equal((await store.findOne('categories', { _id: importedCategoryDraft._id })).status, 'enabled');
+  assert.equal((await store.findOne('products', { _id: importedDraft._id })).status, 'on_sale');
+  assert.equal((await store.findOne('product_skus', { _id: importedSkuDraft._id })).status, 'on_sale');
   const importedCatalog = await call(app, 'catalog.products', { keyword: '测试鱼丸' });
   assert.equal(importedCatalog.data.rows.length, 1);
+  const personalApp = createApplication({ store, getIdentity: () => ({ OPENID: 'local-flow-personal' }), piiEncryptionKey: 'unit-test-pii-encryption-key', clock: fixedClock });
+  const personalPrices = await call(personalApp, 'catalog.prices', { skuIds: [importedSkuDraft._id, secondSkuDraft._id], channel: 'miniapp' });
+  assert.deepEqual(personalPrices.data.rows.map((row) => row.amountCent), [1990, 2990]);
+  const personalAddress = await call(personalApp, 'address.upsert', { name: '本地测试收货人', phone: '13800000000', regionCode: 'TEST-REVIEW', detail: '仅本地内存测试' });
+  assert.equal(personalAddress.ok, true, JSON.stringify(personalAddress.error));
+  const quotePayload = { addressId: personalAddress.data.address._id, warehouseId: 'review-test-warehouse', deliverySlotId: 'review-slot', channel: 'miniapp', items: [{ skuId: importedSkuDraft._id, quantity: 1 }, { skuId: secondSkuDraft._id, quantity: 1 }] };
+  const importedQuote = await call(personalApp, 'checkout.quote', quotePayload);
+  assert.equal(importedQuote.ok, true, JSON.stringify(importedQuote.error));
+  assert.equal(importedQuote.data.quote.goodsAmountCent, 4980);
+  assert.equal(importedQuote.data.quote.freightAmountCent, 500);
+  assert.equal(importedQuote.data.quote.payableAmountCent, 5480);
+  const overstockQuote = await call(personalApp, 'checkout.quote', { ...quotePayload, items: [{ skuId: importedSkuDraft._id, quantity: 3 }] });
+  assert.equal(overstockQuote.error.code, 'INVENTORY_NOT_AVAILABLE');
   assert.equal(Object.hasOwn(importedCatalog.data.rows[0], 'price'), false, '公开商品接口不得返回未配置价格');
   const imports = await call(app, 'admin.imports.list', { adminToken });
   assert.equal(imports.data.rows[0].status, 'imported');
@@ -512,6 +681,43 @@ async function run() {
   assert.equal((await store.findOne('orders', { _id: 'bulk-order' })).status, 'cancelled');
   const forbidden = await call(app, 'admin.categories.list', {});
   assert.equal(forbidden.error.code, 'VALIDATION_ERROR');
+  const receiptOrder = await call(app, 'orders.create', { idempotencyKey: 'receipt-flow-local', addressId: address.data.address._id, warehouseId: warehouse.data._id, deliverySlotId: deliverySlot.data._id, items: [{ skuId: 'sku-1', quantity: 2 }], paymentMethod: 'offline' });
+  assert.equal(receiptOrder.ok, true, JSON.stringify(receiptOrder.error));
+  const receiptOrderId = receiptOrder.data.order._id;
+  const due = receiptOrder.data.order.totalAmountCent;
+  assert.equal(receiptOrder.data.order.paymentStatus, 'offline_pending');
+  assert.equal(receiptOrder.data.order.collectionStatus, 'unpaid');
+  assert.equal(receiptOrder.data.order.receivedAmountCent, 0);
+  assert.equal(due, 5000, '沿用现有测试价格与运费，本单总额应为50元');
+  const receiptInput = { adminToken: financeToken, orderId: receiptOrderId, amountCent: 3000, receivedAt: '2026-09-07T11:00:00Z', method: 'bank_transfer', note: '本地同单演示，非真实收款', idempotencyKey: 'receipt-flow-first' };
+  const partialReceipt = await call(app, 'admin.orders.receipts.record', receiptInput);
+  assert.equal(partialReceipt.ok, true, JSON.stringify(partialReceipt.error));
+  assert.equal(partialReceipt.data.collectionStatus, 'partial');
+  assert.equal(partialReceipt.data.receivedAmountCent, 3000);
+  assert.equal((await call(app, 'admin.orders.receipts.list', { adminToken: financeToken, orderId: receiptOrderId })).data.orderStatus, 'pending_confirmation', '登记部分收款不能自动发货');
+  const duplicateReceipt = await call(app, 'admin.orders.receipts.record', receiptInput);
+  assert.equal(duplicateReceipt.data.idempotent, true);
+  assert.equal(duplicateReceipt.data.receivedAmountCent, 3000);
+  assert.equal((await call(app, 'orders.cancel', { id: receiptOrderId })).ok, false, '已部分收款不能直接取消');
+  assert.equal((await call(app, 'admin.orders.transition', { adminToken, id: receiptOrderId, status: 'cancelled' })).ok, false, '管理员也不能直接取消已部分收款订单');
+  for (const status of ['picking', 'shipping', 'delivered']) {
+    const moved = await call(app, 'admin.orders.transition', { adminToken, id: receiptOrderId, status });
+    assert.equal(moved.ok, true, JSON.stringify(moved.error));
+    const unchangedReceipt = await call(app, 'admin.orders.receipts.list', { adminToken: financeToken, orderId: receiptOrderId });
+    assert.equal(unchangedReceipt.data.collectionStatus, 'partial', `${status}不能自动标记收齐`);
+    assert.equal(unchangedReceipt.data.receivedAmountCent, 3000);
+    assert.equal(unchangedReceipt.data.outstandingAmountCent, due - 3000);
+  }
+  assert.equal(due - 3000, 2000, '收30元后只应欠20元');
+  const fullReceipt = await call(app, 'admin.orders.receipts.record', { ...receiptInput, amountCent: 2000, idempotencyKey: 'receipt-flow-second' });
+  assert.equal(fullReceipt.ok, true, JSON.stringify(fullReceipt.error));
+  assert.equal(fullReceipt.data.collectionStatus, 'paid');
+  assert.equal(fullReceipt.data.outstandingAmountCent, 0);
+  const receiptHistory = await call(app, 'admin.orders.receipts.list', { adminToken: financeToken, orderId: receiptOrderId });
+  assert.equal(receiptHistory.data.receivedAmountCent, due);
+  assert.equal(receiptHistory.data.orderStatus, 'delivered', '收齐不得改变此前已送达的履约状态');
+  assert.equal(receiptHistory.data.rows.length, 2, '重复登记不能产生第三条收款流水');
+  console.log(`Local actual-dispatch receipt order: ${(due / 100).toFixed(2)} due -> 30.00 received -> ${(due / 100).toFixed(2)} fully received; fulfillment unchanged`);
   console.log('api application tests: passed');
 }
 

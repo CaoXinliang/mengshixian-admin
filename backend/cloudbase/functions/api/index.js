@@ -31,10 +31,18 @@ const app = createApplication({
       return map;
     }, {});
   },
-  storageUploader: async ({ cloudPath, contentBase64 }) => {
+  storageUploader: async ({ cloudPath, contentBase64, fileContent }) => {
     if (typeof cloud.uploadFile !== 'function') throw new Error('CloudBase 云函数不支持文件上传。');
-    const result = await cloud.uploadFile({ cloudPath, fileContent: Buffer.from(contentBase64, 'base64') });
+    const result = await cloud.uploadFile({ cloudPath, fileContent: fileContent || Buffer.from(contentBase64, 'base64') });
     return result && (result.fileID || result.fileId);
+  },
+  storageDownloader: async (fileId) => {
+    if (typeof cloud.downloadFile !== 'function') throw new Error('CloudBase 云函数不支持文件读取。');
+    const result = await cloud.downloadFile({ fileID: fileId });
+    return result && result.fileContent;
+  },
+  storageDeleter: async (fileIds) => {
+    if (typeof cloud.deleteFile === 'function' && fileIds.length) await cloud.deleteFile({ fileList: fileIds });
   },
   getPhoneByCode: async (code) => {
     if (!code || typeof cloud.getOpenData !== 'function') return '';

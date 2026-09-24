@@ -5,10 +5,13 @@
   let signingIn;
   let anonymousReady = false;
 
-  function getToken() { return global.localStorage.getItem('mengshixian_admin_token') || ''; }
+  const tokenKey = 'mengshixian_admin_token';
+  // A token stored by earlier versions must not silently become a new tab's session.
+  try { global.localStorage.removeItem(tokenKey); } catch (_) {}
+  function getToken() { return global.sessionStorage.getItem(tokenKey) || ''; }
   function setToken(token) {
-    if (token) global.localStorage.setItem('mengshixian_admin_token', token);
-    else global.localStorage.removeItem('mengshixian_admin_token');
+    if (token) global.sessionStorage.setItem(tokenKey, token);
+    else global.sessionStorage.removeItem(tokenKey);
   }
   function requestId() { return `admin-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`; }
   function clearSession() { setToken(''); }
@@ -76,20 +79,53 @@
     return body.data;
   }
 
-  async function uploadMediaFile(file, type) {
+  async function uploadMediaFile(file, type, onProgress = () => {}) {
     if (!file) throw new Error('请选择要上传的文件。');
-    // 提交前先做大小预检，避免大文件读入内存后才被服务端拒绝
-    if (file.size > 4 * 1024 * 1024) throw new Error('文件超过 4 MB，请先在 CloudBase 控制台上传后登记文件 ID。');
-    const reader = new FileReader();
-    const dataUrl = await new Promise((resolve, reject) => {
-      reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = () => reject(new Error('读取素材失败。'));
-      reader.readAsDataURL(file);
-    });
+    if (file.size > 24 * 1024 * 1024) throw new Error('文件超过 24 MB，请先压缩视频后再从后台上传。');
+    if (file.size > 4 * 1024 * 1024) {
+      if (!global.crypto || !global.crypto.subtle) throw new Error('当前浏览器不支持安全校验，请使用新版 Edge 或 Chrome。');
+      onProgress({ phase: 'checking', completed: 0, total: file.size, percent: 0 });
+      const checksum = await global.crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+      const sha256 = [...new Uint8Array(checksum)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+      const task = await call('admin.media.beginUpload', { fileName: file.name, type, mimeType: file.type, sizeBytes: file.size, sha256 });
+      if (task.completed && task.fileId) { onProgress({ phase: 'complete', completed: file.size, total: file.size, percent: 100, duplicate: true }); return { fileId: task.fileId, mimeType: file.type, sizeBytes: file.size, sha256, alreadyUploaded: true }; }
+      onProgress({ phase: task.resumed ? 'resuming' : 'uploading', completed: 0, total: file.size, percent: 0 });
+      const uploadedParts = new Set(task.uploadedParts || []);
+      for (let index = 0; index < task.chunkCount; index += 1) {
+        if (!uploadedParts.has(index)) {
+          const part = file.slice(index * task.chunkSize, Math.min(file.size, (index + 1) * task.chunkSize));
+          const contentBase64 = (await readBase64(part)).split(',')[1];
+          await call('admin.media.uploadPart', { uploadId: task.uploadId, index, contentBase64 });
+        }
+        const completed = Math.min(file.size, (index + 1) * task.chunkSize);
+        onProgress({ phase: 'uploading', completed, total: file.size, percent: Math.round(completed * 100 / file.size), resumed: task.resumed });
+      }
+      onProgress({ phase: 'finishing', completed: file.size, total: file.size, percent: 100 });
+      const finished = await call('admin.media.finishUpload', { uploadId: task.uploadId });
+      onProgress({ phase: 'complete', completed: file.size, total: file.size, percent: 100 });
+      return { ...finished, sha256 };
+    }
+    onProgress({ phase: 'uploading', completed: 0, total: file.size, percent: 0 });
+    const dataUrl = await readBase64(file);
     const comma = dataUrl.indexOf(',');
     if (comma < 0) throw new Error('素材内容格式不正确。');
     const result = await call('admin.media.upload', { type, fileName: file.name, mimeType: file.type, sizeBytes: file.size, contentBase64: dataUrl.slice(comma + 1) });
-    return result;
+    onProgress({ phase: 'complete', completed: file.size, total: file.size, percent: 100 });
+    let sha256 = '';
+    if (global.crypto && global.crypto.subtle) {
+      const checksum = await global.crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+      sha256 = [...new Uint8Array(checksum)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    }
+    return { ...result, sha256 };
+  }
+
+  function readBase64(blob) {
+    const reader = new FileReader();
+    return new Promise((resolve, reject) => {
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('读取素材失败。'));
+      reader.readAsDataURL(blob);
+    });
   }
 
   global.MengshixianAdminApi = { config, call, uploadMediaFile, getToken, setToken, clearSession, resetAnonymousAuth };

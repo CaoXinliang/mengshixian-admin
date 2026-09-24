@@ -1,0 +1,10 @@
+const assert = require('node:assert/strict');
+const { toCents, toYuan } = require('../admin-money.js');
+assert.equal(toCents('25'), 2500);
+assert.equal(toCents('25.9'), 2590);
+assert.equal(toCents('25.09'), 2509);
+assert.equal(toYuan(2509), '25.09');
+for (const value of ['', '-1', '1.999', '1e3', 'abc']) assert.throws(() => toCents(value), /元金额/);
+assert.throws(() => toCents('999999999999999999'), /过大/);
+assert.throws(() => toYuan(-1), /不合法/);
+console.log('yuan-cent conversion: passed');
