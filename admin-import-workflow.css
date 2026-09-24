@@ -1,0 +1,63 @@
+/* Product import keeps the existing draft workflow and IDs. */
+.panel.import-page{padding:0;border:0;background:transparent;box-shadow:none}
+.import-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin:0 0 20px}
+.import-heading>div{max-width:720px}
+.import-eyebrow,.import-card-kicker{display:block;margin-bottom:6px;color:var(--blue);font-size:12px;font-weight:750;letter-spacing:.025em}
+.import-heading h3{margin:0 0 7px;font-size:23px;line-height:1.25;letter-spacing:-.02em}
+.import-heading p{max-width:630px;margin:0;color:#5e7087;font-size:13px;line-height:1.7}
+.import-safe-note{flex:none;margin-top:7px;padding:7px 11px;border:1px solid #bad5f6;border-radius:7px;background:#eaf4ff;color:var(--blue-dark);font-size:12px;font-weight:700}
+.import-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0 0 22px;padding:19px 22px;border:1px solid var(--line);border-radius:13px;background:#fff}
+.import-steps span{display:flex;align-items:center;gap:10px;min-width:0;color:#43566e;font-size:13px;font-weight:650}
+.import-steps span+span{padding-left:16px;border-left:1px solid #e5edf6}
+.import-steps b{display:grid;place-items:center;flex:none;width:29px;height:29px;border-radius:50%;background:#e9f2fe;color:var(--blue-dark);font-size:11px}
+.import-actions{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(290px,.82fr);gap:18px;margin-bottom:22px}
+.import-upload-card,.import-template-card,.import-preview,.import-saved{border:1px solid var(--line);border-radius:13px;background:#fff;box-shadow:0 5px 17px rgba(26,68,116,.035)}
+.import-upload-card{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:263px;padding:26px 30px;border:1px dashed #9fc3ee;background:#fbfdff;text-align:center}
+.import-upload-mark{display:grid;place-items:center;width:46px;height:46px;margin-bottom:12px;border-radius:12px;background:#e8f2ff;color:var(--blue);font-size:29px;line-height:1}
+.import-upload-card h4,.import-template-card h4{margin:0 0 7px;font-size:17px;line-height:1.35}
+.import-upload-card p,.import-template-card p{max-width:430px;margin:0 0 17px;color:#62748a;font-size:13px;line-height:1.65}
+.import-upload-card .upload-label{min-height:42px;margin:0 0 12px;padding:9px 19px;border-color:var(--blue);background:var(--blue);color:#fff;font-size:13px;transition:background-color .2s ease}
+.import-upload-card .upload-label:hover{background:var(--blue-dark)}
+.import-upload-card .upload-label:focus-within{outline:3px solid rgba(21,101,216,.24);outline-offset:2px}
+.import-upload-card small,.import-template-card small{color:#6a7a8e;font-size:11px;line-height:1.65}
+.import-template-card{display:flex;flex-direction:column;align-items:flex-start;padding:25px 27px}
+.import-template-card p{margin-bottom:18px}
+.import-template-card button{min-height:40px;margin:0 0 13px;padding:8px 14px;border:1px solid #a9c8ee;border-radius:8px;background:#f0f7ff;color:var(--blue-dark);font-weight:700}
+.import-template-card button:hover{background:#e1efff}
+.import-template-card a{margin-bottom:14px;color:var(--blue-dark);font-size:12px;font-weight:650;text-underline-offset:3px}
+.import-template-card small{margin-top:auto}
+.import-preview,.import-saved{margin:0 0 22px;padding:22px}
+.import-preview[hidden]{display:none}
+.import-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px}
+.import-section-head h3,.import-section-head h4{margin:0 0 5px;font-size:18px;line-height:1.3}
+.import-section-head p,.import-section-hint{margin:0;color:#6a7b8d;font-size:12px;line-height:1.55}
+.import-section-hint{padding-top:10px}
+.import-section-head a{flex:none;align-self:center;color:var(--blue-dark);font-size:13px;font-weight:700;text-decoration:none}
+.import-section-head a:hover{text-decoration:underline}
+.import-preview>p{margin:0 0 14px;color:#4b5d73;font-size:13px;line-height:1.7}
+.import-preview .table-wrap{max-height:370px;margin-bottom:17px;overflow:auto}
+.import-preview td{max-width:260px;overflow-wrap:anywhere}
+.import-preview-footer{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.import-preview-footer p{max-width:580px;margin:0;color:#63758a;font-size:12px;line-height:1.55}
+.import-preview .primary-action{flex:none;min-height:40px;padding:9px 18px;border-radius:8px;background:var(--blue);color:#fff;font-weight:700}
+.import-preview .primary-action:hover:not(:disabled){background:var(--blue-dark)}
+.import-preview .primary-action:disabled{opacity:.5;cursor:not-allowed}
+.import-saved .table-wrap{margin-top:4px}
+.import-saved th{background:#f4f8fc}
+.import-saved .col-action{min-width:145px}
+.import-saved .empty-hint{display:none}
+.import-saved .table-wrap:has(.empty-row) table{min-width:100%}
+.import-saved .table-wrap:has(.empty-row) thead{display:none}
+@media(max-width:940px){
+  .import-actions{grid-template-columns:1fr}
+  .import-steps{grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+  .import-steps span+span{padding-left:0;border-left:0}
+}
+@media(max-width:600px){
+  .import-heading,.import-section-head,.import-preview-footer{flex-direction:column;align-items:flex-start}
+  .import-safe-note{margin-top:0}
+  .import-steps{grid-template-columns:1fr;padding:17px}
+  .import-upload-card{min-height:230px;padding:24px 17px}
+  .import-template-card,.import-preview,.import-saved{padding:18px}
+  .import-preview .primary-action{width:100%}
+}

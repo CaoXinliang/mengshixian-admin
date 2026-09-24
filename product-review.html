@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>梦食鲜｜商品核对发布</title><link rel="icon" href="assets/logo.png" type="image/png">
+  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="admin-shell.css">
+  <link rel="stylesheet" href="admin-product-review.css">
+</head>
+<body>
+  <main class="admin-shell" id="adminShell"><aside class="sidebar" id="adminSidebar"></aside><section class="workspace">
+    <header class="workspace-head" id="adminHeader"></header><p class="notice" id="globalMessage" aria-live="polite"></p>
+    <section class="panel is-active" data-panel="productReview">
+      <div class="section-head"><div><h3>商品核对与发布</h3><p>先按商品编码找到草稿，核对分类、所有销售规格、价格、主图和视频。缺项保留草稿；只有点击“确认发布”才上架。</p></div><a href="imports.html">返回商品导入</a></div>
+      <div class="review-layout"><aside class="review-list"><label>找商品（名称或编码）<input id="reviewSearch" type="search" placeholder="输入商品名称或编码"></label><div id="reviewProducts" aria-label="商品列表">正在加载…</div></aside>
+      <div class="review-detail" id="reviewDetail"><p>从左侧选一个商品开始核对。</p></div></div>
+    </section>
+  </section></main>
+  <script src="https://static.cloudbase.net/cloudbase-js-sdk/3.9.2/cloudbase.full.js"></script>
+  <script src="config.js"></script><script src="api-client.js"></script>
+  <script>if (!window.MengshixianAdminApi || !window.MengshixianAdminApi.getToken()) window.location.replace('login.html');</script>
+  <script src="paging.js"></script><script>window.PAGE_NAME = 'productReview';</script>
+  <script src="admin-page-registry.js"></script><script src="admin-shell.js"></script>
+  <script src="admin-review-labels.js"></script><script src="admin-product-review.js"></script>
+</body>
+</html>

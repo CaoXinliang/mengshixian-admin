@@ -1,0 +1,28 @@
+.panel[data-panel="inventory"]{padding:25px}
+.inventory-task{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(240px,.75fr);gap:24px;align-items:stretch;margin-bottom:25px}
+.inventory-task>div{padding:7px 0}
+.inventory-task .eyebrow{margin:0 0 6px;color:var(--blue);font-size:11px}
+.inventory-task h2{margin:0 0 7px;font-size:22px;letter-spacing:-.025em}
+.inventory-task p:last-child{max-width:680px;margin:0;color:#5e7086;font-size:13px;line-height:1.7}
+.inventory-task aside{display:flex;flex-direction:column;gap:7px;padding:17px 19px;border:1px solid #dce8f6;border-radius:11px;background:#f6faff}
+.inventory-task aside strong{font-size:13px;color:#345675}
+.inventory-task aside span{color:#63778f;font-size:12px;line-height:1.55}
+.inventory-task aside a{margin-top:auto;color:var(--blue-dark);font-size:12px;font-weight:700;text-decoration:none}
+.inventory-guide-search{margin:0 0 25px;padding:17px 19px;border:1px solid #d5e3f4;border-radius:10px;background:#f5f9ff}
+.inventory-guide-search label{margin:0 0 7px;color:#315d91;font-size:13px}
+.inventory-guide-search input{max-width:460px}
+.inventory-guide-search p{margin:8px 0 0;color:var(--muted);font-size:12px}
+.inventory-original.is-filtered,.inventory-matches[hidden]{display:none}
+.inventory-records-title{margin:0 0 14px;font-size:15px}
+.panel[data-panel="inventory"] .table-toolbar{display:flex;justify-content:flex-end;margin:-44px 0 13px}
+.inventory-matches:not(.has-rows) table{display:none}
+.inventory-guide-empty{padding:36px 20px;text-align:center}
+.inventory-guide-empty[hidden]{display:none}
+.inventory-guide-empty strong{display:block;color:#405872;font-size:14px}
+.inventory-guide-empty p{margin:6px auto 0;max-width:440px;color:#8593a5;font-size:12px;line-height:1.6}
+.inventory-matches table{min-width:760px}
+.inventory-matches td:first-child{font-weight:600}
+.inventory-matches td button{padding:7px 10px}
+.inventory-native-field{display:none}
+.inventory-guide-reminder{margin:4px 0 14px;padding:12px 13px;border:1px solid #b8d4f5;border-radius:8px;background:#eef5ff;color:#214d80;font-size:13px;line-height:1.65}
+@media(max-width:840px){.inventory-task{grid-template-columns:1fr}.panel[data-panel="inventory"] .table-toolbar{margin:0 0 12px;justify-content:flex-start}}

@@ -28,10 +28,11 @@
   <script>
     (function(global, document) {
       const api = global.MengshixianAdminApi;
+      const nextPage = 'index.html';
 
       // 如果已有 token，直接跳转首页
       if (api.getToken()) {
-        global.location.replace('index.html');
+        global.location.replace(nextPage);
         return;
       }
 
@@ -57,7 +58,7 @@
           });
           api.setToken(result.token);
           loginMessage('登录成功，正在跳转…');
-          setTimeout(() => global.location.replace('index.html'), 300);
+          setTimeout(() => global.location.replace(nextPage), 300);
         } catch (error) {
           loginMessage(error.message || '登录失败。', true);
         }
