@@ -1,6 +1,6 @@
 (function registerAdminPages(global) {
   const groups = [
-    { id: 'overview', label: '工作台', pages: [['overview', '工作台', 'index.html']] },
+    { id: 'overview', label: '工作台', pages: [['overview', '工作台', 'index.html'], ['openingCheck', '开店检查', 'opening-check.html']] },
     { id: 'catalog', label: '商品中心', pages: [['products', '商品管理', 'products.html'], ['productWorkflow', '商品编辑', 'product-workflow.html'], ['productReview', '核对发布', 'product-review.html'], ['categories', '分类管理', 'categories.html'], ['imports', '商品导入', 'imports.html'], ['pricing', '价格规则', 'pricing.html']] },
     { id: 'trade', label: '订单中心', pages: [['orders', '订单履约', 'orders.html'], ['refunds', '退款售后', 'refunds.html']] },
     { id: 'fulfillment', label: '库存配送', pages: [['inventory', '库存管理', 'inventory.html'], ['warehouses', '仓库管理', 'warehouses.html'], ['areas', '配送区域', 'areas.html'], ['freight', '运费规则', 'freight.html'], ['slots', '配送时段', 'slots.html']] },
@@ -12,6 +12,7 @@
 
   const pages = Object.fromEntries(groups.flatMap((group) => group.pages.map(([id, title, href]) => [id, { id, title, href, groupId: group.id, groupLabel: group.label }])));
   const descriptions = {
+    openingCheck: '逐项核对仓库、配送、库存、价格和收款条件；已有记录不等于已可营业。',
     products: '维护商品资料、销售规格与商品媒体，发布前核对信息完整性。',
     productWorkflow: '按步骤编辑商品资料、图片、规格与价格，核对后再上架。',
     productReview: '按商品编码核对分类、规格、价格、素材，资料齐全后逐件确认发布。',
@@ -32,7 +33,7 @@
     media: '登记素材、查看来源与版本，替换时保留历史。',
     groups: '维护拼团活动和适用商品。',
     access: '管理后台账号与角色权限。',
-    audit: '按操作记录追溯后台变更。'
+    audit: '按时间查看谁对什么做了什么；原始编号仅供高级排查。'
   };
   Object.values(pages).forEach((page) => { page.description = descriptions[page.id] || ''; });
   global.MengshixianAdminPages = Object.freeze({ groups, pages });

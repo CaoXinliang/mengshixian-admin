@@ -26,4 +26,9 @@ window.MengshixianAdminPageSummary.render('inventory', {
 });
 assert.match(root.innerHTML, /存在预占<\/span><strong>1<\/strong>/);
 assert.match(root.innerHTML, /可售为零<\/span><strong>1<\/strong>/);
+window.MengshixianAdminPageSummary.render('orders', { orders: [], loadStates: { orders: 'failed' } });
+assert.match(root.innerHTML, /暂不可用/);
+assert.doesNotMatch(root.innerHTML, /<strong>0<\/strong>/);
+window.MengshixianAdminPageSummary.render('orders', { orders: [], loadStates: { orders: 'loading' } });
+assert.match(root.innerHTML, /正在读取/);
 console.log('admin page summary derives values from loaded records: passed');

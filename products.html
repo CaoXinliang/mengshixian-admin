@@ -17,21 +17,34 @@
     <section class="workspace">
       <header class="workspace-head" id="adminHeader"></header>
       <p class="notice" id="globalMessage" aria-live="polite"></p>
-      <section class="panel is-active domain-panel" data-panel="products">
-        <div class="domain-panel-head"><div><h3>商品资料</h3><p>先查找商品，再进入分步骤编辑；专业规格与媒体关联保留在下方标签。</p></div><span class="domain-context">数据来自当前后台</span></div>
-        <nav class="panel-tabs panel-tabs-inner">
+      <section class="panel is-active domain-panel product-page" data-panel="products">
+        <div class="domain-panel-head product-heading">
+          <div><span class="product-eyebrow">商品管理 · 日常操作</span><h3>从商品清单开始</h3><p>先找到商品，再编辑资料；发布前集中核对，不在列表里直接决定上架。</p></div>
+          <div class="product-heading-links"><a href="imports.html">批量导入</a><a href="product-review.html">上架前核对 →</a></div>
+        </div>
+        <div class="product-route" role="list" aria-label="商品操作顺序"><span role="listitem"><b>01</b>找商品</span><span role="listitem"><b>02</b>编辑与补齐</span><span role="listitem"><b>03</b>核对后上架</span></div>
+        <nav class="panel-tabs panel-tabs-inner product-tabs" aria-label="商品资料视图">
           <button data-tab="prod-list" class="is-active">商品列表</button>
-          <button data-tab="prod-skus">SKU 规格</button>
+          <button data-tab="prod-skus">销售规格</button>
           <button data-tab="prod-media">商品媒体关联</button>
         </nav>
         <div class="panel-tab-content is-active" data-tab-content="prod-list">
-          <div class="product-list-guide"><label>查找商品<input id="productKeyword" type="search" placeholder="输入商品名称或分类"></label><a href="product-workflow.html">+ 新增商品</a></div>
-          <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>商品</th><th>分类</th><th>温层</th><th>状态</th><th class="col-action">操作</th></tr></thead><tbody id="productsTable"></tbody></table></div>
+          <section class="product-list-guide" aria-labelledby="productFindTitle">
+            <div class="product-find-copy"><span class="product-eyebrow">当前任务</span><h4 id="productFindTitle">先找到要处理的商品</h4><p>按名称或分类查找；打开后再补图片、规格与价格。</p></div>
+            <div class="product-find-controls"><label>商品名称或分类<input id="productKeyword" type="search" placeholder="输入商品名称或分类"></label><a href="product-workflow.html">+ 新增商品</a></div>
+          </section>
+          <section class="product-results" aria-labelledby="productResultsTitle">
+            <div class="product-results-head"><div><span class="product-eyebrow">现有商品</span><h4 id="productResultsTitle">商品列表</h4></div><p>点“按步骤编辑”继续补齐资料</p></div>
+            <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>商品</th><th>分类</th><th>温层</th><th>状态</th><th class="col-action">操作</th></tr></thead><tbody id="productsTable"></tbody></table></div>
+            <div class="product-results-footer"><p>资料补齐后，逐件检查价格、主图、规格和库存，再明确确认发布。</p><a href="product-review.html">去上架前核对 →</a></div>
+          </section>
         </div>
         <div class="panel-tab-content" data-tab-content="prod-skus">
-          <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>SKU 规格</th><th>包装单位</th><th>关联商品</th><th>状态</th><th class="col-action">操作</th></tr></thead><tbody id="skusTable"></tbody></table></div>
+          <div class="product-advanced-head"><span class="product-eyebrow">专业资料</span><h4>销售规格</h4><p>按商品核对包装单位与规格状态；正式发布仍须满足服务端上架条件。</p></div>
+          <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>销售规格</th><th>包装单位</th><th>关联商品</th><th>状态</th><th class="col-action">操作</th></tr></thead><tbody id="skusTable"></tbody></table></div>
         </div>
         <div class="panel-tab-content" data-tab-content="prod-media">
+          <div class="product-advanced-head"><span class="product-eyebrow">专业资料</span><h4>商品媒体关联</h4><p>素材先上传到素材库，再按商品或确有需要的规格建立展示关系。</p></div>
           <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>商品媒体</th><th>素材名称</th><th>类型</th><th>角色</th><th>状态</th><th class="col-action">操作</th></tr></thead><tbody id="productMediaTable"></tbody></table></div>
         </div>
       </section>

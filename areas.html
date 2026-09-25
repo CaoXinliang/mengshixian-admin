@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="admin-shell.css">
   <link rel="stylesheet" href="admin-page-summary.css">
   <link rel="stylesheet" href="admin-operation-forms.css">
+  <link rel="stylesheet" href="admin-delivery-pages.css">
 </head>
 <body>
   <main class="admin-shell" id="adminShell">
@@ -17,6 +18,8 @@
       <header class="workspace-head" id="adminHeader"></header>
       <p class="notice" id="globalMessage" aria-live="polite"></p>
       <section class="panel is-active" data-panel="areas">
+        <div class="delivery-task"><div><p class="eyebrow">配送 · 第一步</p><h2>确认哪些地区可以送</h2><p>按名称维护实际服务范围，保存前核对仓库覆盖。不要为了通过开店检查添加无法履约的区域。</p></div><aside><strong>保存后还需核对</strong><span>配送时段、运费、仓库与库存仍分别决定顾客能否正常下单。</span><a href="opening-check.html">查看开店检查 →</a></aside></div>
+        <h3 class="delivery-records-title">已有配送区域</h3>
         <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>配送区域</th><th>覆盖区域</th><th>状态</th><th class="col-action">操作</th></tr></thead><tbody id="deliveryAreasTable"></tbody></table></div>
       </section>
       <div class="hidden-forms"></div>

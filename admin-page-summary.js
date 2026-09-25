@@ -18,8 +18,14 @@
     banners: (s) => [['轮播记录', all(s.banners)], ['已启用', count(s.banners, (x) => x.enabled !== false)]],
     sections: (s) => [['首页模块', all(s.sections)], ['已启用', count(s.sections, (x) => x.enabled !== false)]],
     media: (s) => [['素材记录', all(s.media)], ['临时素材', count(s.media, (x) => x.temporary === true)], ['图片', count(s.media, (x) => x.type === 'image')], ['视频', count(s.media, (x) => x.type === 'video')]],
-    groups: (s) => [['拼团活动', all(s.groupCampaigns)], ['生效中', count(s.groupCampaigns, (x) => x.status === 'active')]],
-    audit: (s) => [['操作记录', all(s.audit)]]
+    groups: (s) => [['拼团活动', all(s.groupCampaigns)], ['生效中', count(s.groupCampaigns, (x) => x.status === 'active')]]
+  };
+  const sources = {
+    products: 'products', categories: 'categories', imports: 'imports', pricing: 'prices',
+    orders: 'orders', refunds: 'refunds', warehouses: 'warehouses', areas: 'deliveryAreas',
+    freight: 'freightRules', inventory: 'inventory', slots: 'deliverySlots',
+    businesses: 'businessApplications', users: 'users', banners: 'banners', sections: 'sections',
+    media: 'media', groups: 'groupCampaigns'
   };
 
   function render(pageName, state) {
@@ -34,7 +40,9 @@
       root.setAttribute('aria-label', '当前业务数据摘要');
       intro.insertAdjacentElement('afterend', root);
     }
-    root.innerHTML = build(state).map(([label, value]) => `<div class="page-summary-item"><span>${label}</span><strong>${value}</strong></div>`).join('');
+    const loadState = state.loadStates && state.loadStates[sources[pageName]];
+    const display = loadState === 'failed' ? '暂不可用' : loadState === 'loading' ? '正在读取' : null;
+    root.innerHTML = build(state).map(([label, value]) => `<div class="page-summary-item"><span>${label}</span><strong>${display || value}</strong></div>`).join('');
   }
 
   global.MengshixianAdminPageSummary = Object.freeze({ render });

@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EnvId = 'cloud1-d8gp843lt5454ada7', [string]$FunctionName = 'api', [int]$Timeout = 30)
+param([Parameter(Mandatory = $true)][string]$EnvId, [string]$FunctionName = 'api', [int]$Timeout = 30)
 
 $ErrorActionPreference = 'Stop'
 $runtimeNode = 'C:\Users\YEFAN\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'

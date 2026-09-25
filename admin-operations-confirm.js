@@ -14,7 +14,8 @@
     }
     if (type === 'businessApprove' || type === 'businessReject') {
       const decision = type === 'businessApprove' ? '通过' : '驳回';
-      return `请核对企业申请：\n${record.companyName || '未命名企业'}\n统一社会信用代码：${record.unifiedCode || '未填写'}\n联系人：${record.contactName || '未填写'}\n\n确认${decision}？${type === 'businessApprove' ? '通过后该客户将成为企业客户。' : '驳回后该申请将结束。'}`;
+      const businessType = { restaurant: '餐饮', retail: '零售' }[record.mainBusinessType] || '待核对';
+      return `请再次核对企业申请：\n${record.companyName || '未命名企业'}\n门店：${record.storeName || '未填写'}\n地址：${record.storeAddress || '未填写'}\n主营：${businessType}\n统一社会信用代码：${record.unifiedCode || '未填写'}\n联系人：${record.contactName || '未填写'} ${record.contactPhoneMasked || ''}\n\n确认${decision}？${type === 'businessApprove' ? '通过后该客户将成为企业客户；请确认门头照片与营业执照的实际内容已核对。' : '驳回后该申请将结束。'}`;
     }
     if (type === 'refundApprove' || type === 'refundReject') {
       const decision = type === 'refundApprove' ? '通过' : '驳回';

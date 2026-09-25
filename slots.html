@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="admin-shell.css">
   <link rel="stylesheet" href="admin-page-summary.css">
+  <link rel="stylesheet" href="admin-delivery-pages.css">
 </head>
 <body>
   <main class="admin-shell" id="adminShell">
@@ -16,6 +17,8 @@
       <header class="workspace-head" id="adminHeader"></header>
       <p class="notice" id="globalMessage" aria-live="polite"></p>
       <section class="panel is-active" data-panel="slots">
+        <div class="delivery-task"><div><p class="eyebrow">配送 · 第二步</p><h2>核对顾客能选的配送时间</h2><p>确认时段名称、起止时间、适用区域与仓库，停用的时段不应误显示为可预约。</p></div><aside><strong>当前边界</strong><span>页面保存的容量数字尚不参与真实限单；不能把它当作已承诺可送数量。</span><a href="opening-check.html">查看开店检查 →</a></aside></div>
+        <h3 class="delivery-records-title">已有配送时段</h3>
         <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>配送时段</th><th>区域</th><th>仓库</th><th>状态</th><th class="col-action">操作</th></tr></thead><tbody id="deliverySlotsTable"></tbody></table></div>
       </section>
       <div class="hidden-forms"></div>

@@ -11,6 +11,7 @@
       ['categories', 'admin.categories.list'],
       ['products', 'admin.products.list'],
       ['skus', 'admin.skus.list'],
+      ['inventory', 'admin.inventory.list'],
       ['orders', 'admin.orders.list'],
       ['refunds', 'admin.refunds.list'],
       ['businessApplications', 'admin.businessApplications.list']
@@ -51,7 +52,7 @@
     media:      [['media', 'admin.media.list']],
     groups:     [['groupCampaigns', 'admin.groupCampaigns.list'], ['skus', 'admin.skus.list'], ['products', 'admin.products.list']],
     access: [],
-    audit: [['audit', 'admin.audit.list']]
+    audit: []
   };
 
   const state = {
@@ -59,7 +60,7 @@
     users: [], organizations: [], businessApplications: [], prices: [], warehouses: [], inventory: [],
     deliveryAreas: [], freightRules: [], deliverySlots: [], orders: [], refunds: [],
     groupCampaigns: [], imports: [], media: [], productMedia: [], banners: [],
-    sections: [], audit: [], pricingTargetNames: {},
+    sections: [], pricingTargetNames: {},
     pageMap: {}, loadStates: {}
   };
 
@@ -148,7 +149,19 @@
 
     let html = '';
     if (total === 0) {
-      html = `<tr class="empty-row"><td colspan="${colSpan + 1}"><div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">暂无数据</div><div class="empty-hint">点击上方"新增"按钮开始添加</div></div></td></tr>`;
+      const emptyHints = {
+        orders: '当前没有订单；新订单会出现在这里。',
+        refunds: '当前没有售后申请。',
+        imports: '还没有商品表格草稿；先下载模板并选择填好的表格。',
+        products: '还没有商品；先导入表格或创建商品草稿。',
+        media: '素材库还没有文件；从电脑上传图片或视频后会显示在这里。',
+        inventory: '还没有库存记录；取得真实库存资料后再登记。'
+      };
+      const loadState = state.loadStates[pageKey];
+      const filtered = Array.isArray(state[pageKey]) && state[pageKey].length > 0;
+      const title = loadState === 'failed' ? '资料暂不可用' : loadState === 'loading' ? '正在读取资料' : filtered ? '没有匹配的记录' : '当前没有记录';
+      const hint = loadState === 'failed' ? '请检查连接并刷新；现在不能确认是否有记录。' : loadState === 'loading' ? '读取完成后会显示实际结果。' : filtered ? '请调整搜索或筛选条件。' : emptyHints[pageKey] || '新增记录后会显示在这里。';
+      html = `<tr class="empty-row"><td colspan="${colSpan + 1}"><div class="empty-state"><div class="empty-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 7h16v12H4zM4 11h16M9 15h6"/></svg></div><div class="empty-text">${title}</div><div class="empty-hint">${hint}</div></div></td></tr>`;
     } else {
       html = sliced.map((item, idx) => {
         const seq = start + idx + 1;
@@ -204,7 +217,27 @@
 
   // ---------- 模态框 ----------
   let modalFormRef = null;
+  const requiredFormGuides = {
+    categoryForm: ['MengshixianCategoryGuide'],
+    productForm: ['MengshixianProductFormGuide'],
+    skuForm: ['MengshixianProductFormGuide'],
+    productMediaForm: ['MengshixianProductFormGuide'],
+    priceForm: ['MengshixianOperationForms', 'MengshixianPricingTargets'],
+    deliveryAreaForm: ['MengshixianOperationForms'],
+    freightForm: ['MengshixianOperationForms'],
+    deliverySlotForm: ['MengshixianOperationForms'],
+    groupCampaignForm: ['MengshixianOperationForms'],
+    bannerForm: ['MengshixianContentGuide'],
+    sectionForm: ['MengshixianContentGuide'],
+    userPricingForm: ['MengshixianCustomerGuide']
+  };
   function openModal(form, title) {
+    const inventoryGuideMissing = form.getAttribute('id') === 'inventoryForm'
+      && (!global.MengshixianAdminInventoryGuide || !form.querySelector('#inventoryWarehouseChoice') || !form.querySelector('#inventorySkuChoice'));
+    if (inventoryGuideMissing || (requiredFormGuides[form.getAttribute('id')] || []).some((name) => !global[name] || typeof global[name].onOpen !== 'function')) {
+      message('表单暂不可用：页面没有完整加载，请刷新后重试；不要填写内部编号。', true);
+      return;
+    }
     if (global.MengshixianCategoryGuide) global.MengshixianCategoryGuide.onOpen(form, state);
     if (global.MengshixianContentGuide) global.MengshixianContentGuide.onOpen(form, state);
     if (global.MengshixianOperationForms) global.MengshixianOperationForms.onOpen(form, state);
@@ -212,7 +245,9 @@
     if (global.MengshixianProductFormGuide) global.MengshixianProductFormGuide.onOpen(form, state);
     if (global.MengshixianCustomerGuide) global.MengshixianCustomerGuide.onOpen(form, state);
     if (form.getAttribute('id') === 'mediaForm') {
-      $('#mediaVersionHint').textContent = '从电脑选择图片或视频（最大 24 MB）。后台会自动上传并登记；替换素材请使用“新建版本”，旧素材保留。';
+      $('#mediaVersionHint').textContent = api.config.largeVideoUploadEnabled
+        ? '从电脑选择图片（最大 24 MB）或视频（最大 100 MB）。视频超过 24 MB 时走云存储直传；替换素材请使用“新建版本”，旧素材保留。'
+        : '从电脑选择图片或视频（最大 24 MB）。大视频直传尚未在本环境验收；替换素材请使用“新建版本”，旧素材保留。';
     }
     const overlay = $('#modalOverlay');
     const body = $('#modalBody');
@@ -263,7 +298,7 @@
 
     // ---- overview ----
     if (PAGE_NAME === 'overview') global.MengshixianAdminOverview.render(state);
-    if (PAGE_NAME !== 'overview' && PAGE_NAME !== 'access') global.MengshixianAdminPageSummary.render(PAGE_NAME, state);
+    if (!['overview', 'access', 'audit', 'imports', 'orders', 'refunds', 'media', 'inventory', 'areas', 'slots', 'freight', 'categories', 'pricing'].includes(PAGE_NAME)) global.MengshixianAdminPageSummary.render(PAGE_NAME, state);
 
     global.MengshixianAdminTables.render(state, { escapeHtml, translateStatus, badge, formatDate, formatCents, formatRegionPreview, paginateRows });
 
@@ -275,7 +310,7 @@
       { tbodyId: 'importsTable',    addBtn: null },
       { tbodyId: 'categoriesTable', addBtn: { text: '+ 新增分类', form: '#categoryForm', title: '新增分类' } },
       { tbodyId: 'productsTable',   addBtn: null },
-      { tbodyId: 'skusTable',       addBtn: { text: '+ 新增 SKU', form: '#skuForm', title: '新增 SKU' } },
+      { tbodyId: 'skusTable',       addBtn: { text: '+ 新增销售规格', form: '#skuForm', title: '新增销售规格' } },
       { tbodyId: 'productMediaTable', addBtn: { text: '+ 新增媒体关联', form: '#productMediaForm', title: '新增商品媒体关联' } },
       { tbodyId: 'businessApplicationsTable', addBtn: null },
       { tbodyId: 'usersTable',      addBtn: null },
@@ -290,8 +325,7 @@
       { tbodyId: 'groupCampaignsTable', addBtn: { text: '+ 新增拼团活动', form: '#groupCampaignForm', title: '新增拼团活动' } },
       { tbodyId: 'bannersTable',    addBtn: { text: '+ 新增轮播图', form: '#bannerForm', title: '新增轮播图' } },
       { tbodyId: 'sectionsTable',   addBtn: { text: '+ 新增首页模块', form: '#sectionForm', title: '新增首页模块' } },
-      { tbodyId: 'mediaTable',      addBtn: { text: '+ 上传素材', form: '#mediaForm', title: '上传新素材' } },
-      { tbodyId: 'auditTable',      addBtn: null }
+      { tbodyId: 'mediaTable',      addBtn: { text: '+ 上传素材', form: '#mediaForm', title: '上传新素材' } }
     ];
     toolbarMap.forEach(({ tbodyId, addBtn }) => {
       const tbody = document.getElementById(tbodyId);
@@ -401,18 +435,18 @@ async function refreshAll() {
 
   // ---------- 编辑填充 ----------
   function fillCategory(id) { const item = state.categories.find((row) => row._id === id); if (!item) return; const form = $('#categoryForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.imageMediaId.value = item.imageMediaId || ''; form.elements.sort.value = item.sort || 0; form.elements.status.value = item.status; openModal(form, '编辑分类'); }
-  function fillBanner(id) { const item = state.banners.find((row) => row._id === id); if (!item) return; const form = $('#bannerForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.title.value = item.title; form.elements.mediaAssetId.value = item.mediaAssetId || ''; form.elements.jumpType.value = item.jumpType || 'none'; form.elements.jumpTarget.value = item.jumpTarget || ''; form.elements.sort.value = item.sort || 0; form.elements.enabled.checked = item.enabled !== false; openModal(form, '编辑轮播图'); }
-  function fillSection(id) { const item = state.sections.find((row) => row._id === id); if (!item) return; const form = $('#sectionForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.moduleType.value = item.moduleType || 'news'; form.elements.title.value = item.title; form.elements.subtitle.value = item.subtitle || ''; form.elements.linkText.value = item.linkText || '更多'; form.elements.mediaAssetId.value = item.mediaAssetId || ''; form.elements.jumpType.value = item.jumpType || 'none'; form.elements.jumpTarget.value = item.jumpTarget || ''; form.elements.sort.value = item.sort || 0; form.elements.enabled.checked = item.enabled !== false; openModal(form, '编辑首页模块'); }
+  function fillBanner(id) { const item = state.banners.find((row) => row._id === id); if (!item) return; const form = $('#bannerForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.title.value = item.title; form.elements.mediaAssetId.value = item.mediaAssetId || ''; form.elements.jumpType.value = item.jumpType || 'none'; form.elements.jumpTarget.value = item.jumpTarget || ''; form.elements.sort.value = item.sort || 0; form.elements.enabled.checked = item.enabled !== false; global.MengshixianContentGuide.populateSchedule(form, item); openModal(form, '编辑轮播图'); }
+  function fillSection(id) { const item = state.sections.find((row) => row._id === id); if (!item) return; const form = $('#sectionForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.moduleType.value = item.moduleType || 'news'; form.elements.title.value = item.title; form.elements.subtitle.value = item.subtitle || ''; form.elements.linkText.value = item.linkText || '更多'; form.elements.mediaAssetId.value = item.mediaAssetId || ''; form.elements.jumpType.value = item.jumpType || 'none'; form.elements.jumpTarget.value = item.jumpTarget || ''; form.elements.sort.value = item.sort || 0; form.elements.enabled.checked = item.enabled !== false; global.MengshixianContentGuide.populateSchedule(form, item); openModal(form, '编辑首页模块'); }
   function startMediaVersion(id) { const item = state.media.find((row) => row._id === id); if (!item) return; const form = $('#mediaForm'); form.reset(); form.elements.replacesMediaAssetId.value = item._id; form.elements.name.value = `${item.name} v${Number(item.version || 1) + 1}`; form.elements.type.value = item.type || 'image'; form.elements.source.value = item.source || 'admin_upload'; form.elements.temporary.checked = item.temporary === true; form.elements.startAt.value = String(item.startAt || '').slice(0, 16); form.elements.endAt.value = String(item.endAt || '').slice(0, 16); const targetPlatforms = item.targetPlatforms && item.targetPlatforms.length ? item.targetPlatforms : ['miniapp', 'web']; form.querySelectorAll('input[name="targetPlatforms"]').forEach((input) => { input.checked = targetPlatforms.includes(input.value); }); openModal(form, '新建素材版本'); }
   function fillProduct(id) { const item = state.products.find((row) => row._id === id); if (!item) return; const form = $('#productForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.categoryId.value = item.categoryId; form.elements.brand.value = item.brand || ''; form.elements.origin.value = item.origin || ''; form.elements.frozenTemperature.value = item.frozenTemperature || '-18℃'; form.elements.coverMediaId.value = item.coverMediaId || ''; form.elements.sort.value = item.sort || 0; openModal(form, '编辑商品'); }
   function fillProductMedia(id) { const item = state.productMedia.find((row) => row._id === id); if (!item) return; const form = $('#productMediaForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.productId.value = item.productId; form.elements.skuId.value = item.skuId || ''; form.elements.mediaAssetId.value = item.mediaAssetId; form.elements.mediaType.value = item.mediaType; form.elements.role.value = item.role || 'detail'; form.elements.sort.value = item.sort || 0; form.elements.enabled.checked = item.enabled !== false; openModal(form, '编辑商品媒体'); }
-  function fillSku(id) { const item = state.skus.find((row) => row._id === id); if (!item) return; const form = $('#skuForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.productId.value = item.productId; form.elements.specName.value = item.specName; form.elements.packageUnit.value = item.packageUnit || ''; form.elements.netWeight.value = item.netWeight || ''; form.elements.weightUnit.value = item.weightUnit || ''; form.elements.piecesPerCase.value = item.piecesPerCase || 0; form.elements.barcode.value = item.barcode || ''; form.elements.status.value = item.status; openModal(form, '编辑 SKU'); }
+  function fillSku(id) { const item = state.skus.find((row) => row._id === id); if (!item) return; const form = $('#skuForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.productId.value = item.productId; form.elements.specName.value = item.specName; form.elements.packageUnit.value = item.packageUnit || ''; form.elements.netWeight.value = item.netWeight || ''; form.elements.weightUnit.value = item.weightUnit || ''; form.elements.piecesPerCase.value = item.piecesPerCase || 0; form.elements.barcode.value = item.barcode || ''; form.elements.status.value = item.status; openModal(form, '编辑销售规格'); }
   function fillUserPricing(id) { const item = state.users.find((row) => row._id === id); if (!item) return; const form = $('#userPricingForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.userType.value = item.userType || 'c'; form.elements.organizationId.value = item.organizationId || ''; form.elements.priceLevel.value = item.priceLevel || ''; openModal(form, '调整用户身份'); }
-  function fillPrice(id) { const item = state.prices.find((row) => row._id === id); if (!item) return; const form = $('#priceForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.skuId.value = item.skuId; form.elements.scopeType.value = item.scopeType; form.elements.scopeId.value = item.scopeId || ''; form.elements.scopeId.dataset.savedValue = item.scopeId || ''; form.elements.channel.value = item.channel || 'all'; form.elements.amountCent.value = item.amountCent; form.elements.priority.value = item.priority || 0; form.elements.status.value = item.status; openModal(form, '编辑价格规则'); }
+  function fillPrice(id) { const item = state.prices.find((row) => row._id === id); if (!item) return; const form = $('#priceForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.skuId.value = item.skuId; form.elements.scopeType.value = item.scopeType; form.elements.scopeId.value = item.scopeId || ''; form.elements.scopeId.dataset.savedValue = item.scopeId || ''; form.elements.channel.value = item.channel || 'all'; form.elements.amountCent.value = item.amountCent; form.elements.priority.value = item.priority || 0; form.elements.status.value = item.status; global.MengshixianOperationForms.populateValidity(form, item); openModal(form, '编辑价格规则'); }
   function fillWarehouse(id) { const item = state.warehouses.find((row) => row._id === id); if (!item) return; const form = $('#warehouseForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.code.value = item.code; form.elements.name.value = item.name; form.elements.address.value = item.address || ''; form.elements.status.value = item.status; form.elements.sort.value = item.sort || 0; openModal(form, '编辑仓库'); }
   function fillDeliveryArea(id) { const item = state.deliveryAreas.find((row) => row._id === id); if (!item) return; const form = $('#deliveryAreaForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.regionCodes.value = (item.regionCodes || []).join('\n'); const namesTa = form.querySelector('textarea[name="regionNames"]'); if (namesTa) namesTa.value = (item.regionNames || []).join('\n'); form.elements.warehouseIds.value = (item.warehouseIds || []).join('\n'); form.elements.status.value = item.status; openModal(form, '编辑配送区域'); setTimeout(function(){ if(form.__syncRegionCodes) form.__syncRegionCodes(); }, 50); }
-  function fillFreight(id) { const item = state.freightRules.find((row) => row._id === id); if (!item) return; const form = $('#freightForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.deliveryAreaId.value = item.deliveryAreaId; form.elements.warehouseId.value = item.warehouseId || ''; form.elements.baseFeeCent.value = item.baseFeeCent || 0; form.elements.additionalFeeCent.value = item.additionalFeeCent || 0; form.elements.freeThresholdCent.value = item.freeThresholdCent || 0; form.elements.status.value = item.status; openModal(form, '编辑运费规则'); }
-  function fillDeliverySlot(id) { const item = state.deliverySlots.find((row) => row._id === id); if (!item) return; const form = $('#deliverySlotForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.deliveryAreaId.value = item.deliveryAreaId; form.elements.warehouseId.value = item.warehouseId || ''; form.elements.startTime.value = item.startTime; form.elements.endTime.value = item.endTime; form.elements.status.value = item.status; openModal(form, '编辑配送时段'); }
+  function fillFreight(id) { const item = state.freightRules.find((row) => row._id === id); if (!item) return; const form = $('#freightForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.deliveryAreaId.value = item.deliveryAreaId; form.elements.warehouseId.value = item.warehouseId || ''; form.elements.baseFeeCent.value = item.baseFeeCent || 0; form.elements.additionalFeeCent.value = item.additionalFeeCent || 0; form.elements.freeThresholdCent.value = item.freeThresholdCent || 0; form.elements.status.value = item.status; global.MengshixianOperationForms.populateFreight(form, item); openModal(form, '编辑运费规则'); }
+  function fillDeliverySlot(id) { const item = state.deliverySlots.find((row) => row._id === id); if (!item) return; const form = $('#deliverySlotForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.name.value = item.name; form.elements.deliveryAreaId.value = item.deliveryAreaId; form.elements.warehouseId.value = item.warehouseId || ''; form.elements.startTime.value = item.startTime; form.elements.endTime.value = item.endTime; form.elements.status.value = item.status; global.MengshixianOperationForms.populateSlot(form, item); openModal(form, '编辑配送时段'); }
   function fillGroupCampaign(id) { const item = state.groupCampaigns.find((row) => row._id === id); if (!item) return; const form = $('#groupCampaignForm'); form.elements.id.value = item._id; form.dataset.editingId = id; form.elements.title.value = item.title; form.elements.skuId.value = item.skuId; form.elements.groupSize.value = item.groupSize; form.elements.durationMinutes.value = item.durationMinutes; form.elements.groupPriceCent.value = item.groupPriceCent; form.elements.targetUserType.value = item.targetUserType || 'all'; form.elements.status.value = item.status; openModal(form, '编辑拼团活动'); }
 
   // ---------- 事件绑定 ----------
@@ -445,10 +479,10 @@ async function refreshAll() {
     if (catForm) catForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.categories.find((row) => row._id === id); const status = form.get('status'); if (status === 'enabled' && (!existing || existing.status !== 'enabled') && !global.MengshixianAdminOperationsConfirm.ask('contentEnable', { title: form.get('name'), impact: '启用后该分类及其下商品可能对顾客可见。' })) return; await call('admin.categories.upsert', { id, name: form.get('name'), imageMediaId: form.get('imageMediaId'), sort: Number(form.get('sort')), status }); closeModal(); await refreshAll(); message('分类已保存。'); } catch (error) { message(error.message, true); } });
 
     const bannerForm = document.getElementById('bannerForm');
-    if (bannerForm) bannerForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.banners.find((row) => row._id === id); const enabled = form.get('enabled') === 'on'; if (enabled && (!existing || existing.enabled === false) && !global.MengshixianAdminOperationsConfirm.ask('contentEnable', { title: form.get('title'), impact: '启用后顾客可能在首页看到此轮播图。' })) return; await call('admin.banners.upsert', { id, title: form.get('title'), mediaAssetId: form.get('mediaAssetId'), jumpType: form.get('jumpType'), jumpTarget: form.get('jumpTarget'), sort: Number(form.get('sort')), enabled }); closeModal(); await refreshAll(); message('轮播图配置已保存。'); } catch (error) { message(error.message, true); } });
+    if (bannerForm) bannerForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); global.MengshixianContentGuide.showError(event.currentTarget, ''); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.banners.find((row) => row._id === id); const enabled = form.get('enabled') === 'on'; const schedule = global.MengshixianContentGuide.readSchedule(event.currentTarget); if (enabled && (!existing || existing.enabled === false) && !global.MengshixianAdminOperationsConfirm.ask('contentEnable', { title: form.get('title'), impact: '启用后顾客可能在首页看到此轮播图。' })) return; await call('admin.banners.upsert', { id, title: form.get('title'), mediaAssetId: form.get('mediaAssetId'), jumpType: form.get('jumpType'), jumpTarget: form.get('jumpTarget'), sort: Number(form.get('sort')), enabled, ...schedule }); closeModal(); await refreshAll(); message('轮播图配置已保存。'); } catch (error) { global.MengshixianContentGuide.showError(event.currentTarget, error.message); message(error.message, true); } });
 
     const sectionForm = document.getElementById('sectionForm');
-    if (sectionForm) sectionForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.sections.find((row) => row._id === id); const enabled = form.get('enabled') === 'on'; if (enabled && (!existing || existing.enabled === false) && !global.MengshixianAdminOperationsConfirm.ask('contentEnable', { title: form.get('title'), impact: '启用后顾客可能在首页看到此首页模块。' })) return; await call('admin.homeSections.upsert', { id, moduleType: form.get('moduleType'), title: form.get('title'), subtitle: form.get('subtitle'), linkText: form.get('linkText'), mediaAssetId: form.get('mediaAssetId'), jumpType: form.get('jumpType'), jumpTarget: form.get('jumpTarget'), sort: Number(form.get('sort')), enabled }); closeModal(); await refreshAll(); message('首页模块已保存。'); } catch (error) { message(error.message, true); } });
+    if (sectionForm) sectionForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); global.MengshixianContentGuide.showError(event.currentTarget, ''); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.sections.find((row) => row._id === id); const enabled = form.get('enabled') === 'on'; const schedule = global.MengshixianContentGuide.readSchedule(event.currentTarget); if (enabled && (!existing || existing.enabled === false) && !global.MengshixianAdminOperationsConfirm.ask('contentEnable', { title: form.get('title'), impact: '启用后顾客可能在首页看到此首页模块。' })) return; await call('admin.homeSections.upsert', { id, moduleType: form.get('moduleType'), title: form.get('title'), subtitle: form.get('subtitle'), linkText: form.get('linkText'), mediaAssetId: form.get('mediaAssetId'), jumpType: form.get('jumpType'), jumpTarget: form.get('jumpTarget'), sort: Number(form.get('sort')), enabled, ...schedule }); closeModal(); await refreshAll(); message('首页模块已保存。'); } catch (error) { global.MengshixianContentGuide.showError(event.currentTarget, error.message); message(error.message, true); } });
 
     const productForm = document.getElementById('productForm');
     if (productForm) productForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.products.find((row) => row._id === id) || {}; if (existing.status === 'on_sale' && !global.confirm(`商品「${existing.name || form.get('name')}」正在销售，保存后顾客可见资料可能立即变化。继续保存？`)) return; await call('admin.products.upsert', { id, spuCode: existing.spuCode || '', name: form.get('name'), subtitle: existing.subtitle || '', categoryId: form.get('categoryId'), brand: form.get('brand'), origin: form.get('origin'), storageType: existing.storageType || 'frozen', frozenTemperature: form.get('frozenTemperature'), shelfLifeDays: existing.shelfLifeDays || 0, description: existing.description || '', coverMediaId: form.get('coverMediaId'), audienceType: existing.audienceType || 'all', sort: Number(form.get('sort')) }); closeModal(); await refreshAll(); message('商品信息已保存。'); } catch (error) { message(error.message, true); } });
@@ -457,7 +491,7 @@ async function refreshAll() {
     if (productMediaForm) productMediaForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.productMedia.find((row) => row._id === id); const enabled = form.get('enabled') === 'on'; if (enabled && (!existing || existing.enabled === false) && !global.MengshixianAdminOperationsConfirm.ask('contentEnable', { title: (state.media.find((row) => row._id === form.get('mediaAssetId')) || {}).name || '该素材', impact: '启用后此素材可能立即出现在商品详情或作为规格图展示。' })) return; await call('admin.productMedia.upsert', { id, productId: form.get('productId'), skuId: form.get('skuId'), mediaAssetId: form.get('mediaAssetId'), mediaType: form.get('mediaType'), role: form.get('role'), sort: Number(form.get('sort')), enabled }); closeModal(); await refreshAll(); message('商品媒体关联已保存。'); } catch (error) { message(error.message, true); } });
 
     const skuForm = document.getElementById('skuForm');
-    if (skuForm) skuForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.skus.find((row) => row._id === id); const status = form.get('status'); const record = existing || { specName: form.get('specName') }; if (status === 'on_sale' && (!existing || existing.status !== 'on_sale') && !global.MengshixianAdminOperationsConfirm.ask('skuPublish', record)) return; if (status === 'off_sale' && existing && existing.status === 'on_sale' && !global.MengshixianAdminOperationsConfirm.ask('skuOffsale', record)) return; await call('admin.skus.upsert', { id, productId: form.get('productId'), specName: form.get('specName'), packageUnit: form.get('packageUnit'), netWeight: form.get('netWeight'), weightUnit: form.get('weightUnit'), piecesPerCase: Number(form.get('piecesPerCase')), barcode: form.get('barcode'), status }); closeModal(); await refreshAll(); message('SKU 信息已保存。'); } catch (error) { message(error.message, true); } });
+    if (skuForm) skuForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { const id = event.currentTarget.dataset.editingId || form.get('id'); const existing = state.skus.find((row) => row._id === id); const status = form.get('status'); const record = existing || { specName: form.get('specName') }; if (status === 'on_sale' && (!existing || existing.status !== 'on_sale') && !global.MengshixianAdminOperationsConfirm.ask('skuPublish', record)) return; if (status === 'off_sale' && existing && existing.status === 'on_sale' && !global.MengshixianAdminOperationsConfirm.ask('skuOffsale', record)) return; await call('admin.skus.upsert', { id, productId: form.get('productId'), specName: form.get('specName'), packageUnit: form.get('packageUnit'), netWeight: form.get('netWeight'), weightUnit: form.get('weightUnit'), piecesPerCase: Number(form.get('piecesPerCase')), barcode: form.get('barcode'), status }); closeModal(); await refreshAll(); message('销售规格已保存。'); } catch (error) { message(error.message, true); } });
 
     const userPricingForm = document.getElementById('userPricingForm');
     if (userPricingForm) userPricingForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { if (!global.MengshixianCustomerGuide || !global.MengshixianCustomerGuide.confirm(event.currentTarget, state)) return; await call('admin.users.setPricingProfile', { id: event.currentTarget.dataset.editingId || form.get('id'), userType: form.get('userType'), organizationId: form.get('organizationId') || '', priceLevel: form.get('priceLevel') }); closeModal(); await refreshAll(); message('用户身份与价格等级已保存。'); } catch (error) { message(error.message, true); } });
@@ -468,8 +502,9 @@ async function refreshAll() {
       const form = new FormData(event.currentTarget);
       try {
         const amounts = global.MengshixianOperationForms.values(event.currentTarget);
+        const priceWindow = global.MengshixianOperationForms.validity(event.currentTarget);
         if (!global.MengshixianOperationForms.ask(event.currentTarget, state)) return;
-        await call('admin.prices.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), skuId: form.get('skuId'), scopeType: form.get('scopeType'), scopeId: form.get('scopeId') || '', channel: form.get('channel'), amountCent: amounts.amountCent, priority: Number(form.get('priority')), status: form.get('status') });
+        await call('admin.prices.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), skuId: form.get('skuId'), scopeType: form.get('scopeType'), scopeId: form.get('scopeId') || '', channel: form.get('channel'), amountCent: amounts.amountCent, priority: Number(form.get('priority')), status: form.get('status'), ...priceWindow });
         closeModal(); await refreshAll(); message('价格规则已保存。');
       } catch (error) { message(error.message, true); }
     });
@@ -486,16 +521,42 @@ async function refreshAll() {
       const form = new FormData(event.currentTarget);
       try {
         const amounts = global.MengshixianOperationForms.values(event.currentTarget);
+        const policy = global.MengshixianOperationForms.freightPolicy(event.currentTarget);
         if (!global.MengshixianOperationForms.ask(event.currentTarget, state)) return;
-        await call('admin.freightRules.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), deliveryAreaId: form.get('deliveryAreaId'), warehouseId: form.get('warehouseId'), ...amounts, status: form.get('status') });
+        await call('admin.freightRules.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), deliveryAreaId: form.get('deliveryAreaId'), warehouseId: form.get('warehouseId'), ...amounts, ...policy, status: form.get('status') });
         closeModal(); await refreshAll(); message('运费规则已保存。');
       } catch (error) { message(error.message, true); }
     });
 
     const deliverySlotForm = document.getElementById('deliverySlotForm');
-    if (deliverySlotForm) deliverySlotForm.addEventListener('submit', async (event) => { event.preventDefault(); if (!window.MengshixianOperationForms.ask(event.currentTarget, state)) return; const form = new FormData(event.currentTarget); try { await call('admin.deliverySlots.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), deliveryAreaId: form.get('deliveryAreaId'), warehouseId: form.get('warehouseId') || '', startTime: form.get('startTime'), endTime: form.get('endTime'), status: form.get('status') }); closeModal(); await refreshAll(); message('配送时段已保存。'); } catch (error) { message(error.message, true); } });
+    if (deliverySlotForm) deliverySlotForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        const policy = global.MengshixianOperationForms.slotPolicy(event.currentTarget);
+        if (!global.MengshixianOperationForms.ask(event.currentTarget, state)) return;
+        const form = new FormData(event.currentTarget);
+        await call('admin.deliverySlots.upsert', { id: event.currentTarget.dataset.editingId || form.get('id'), name: form.get('name'), deliveryAreaId: form.get('deliveryAreaId'), warehouseId: form.get('warehouseId') || '', startTime: form.get('startTime'), endTime: form.get('endTime'), status: form.get('status'), ...policy });
+        closeModal(); await refreshAll(); message('配送时段已保存。');
+      } catch (error) { message(error.message, true); }
+    });
   const inventoryForm = document.getElementById('inventoryForm');
-  if (inventoryForm) inventoryForm.addEventListener('submit', async (event) => { event.preventDefault(); const form = new FormData(inventoryForm); try { await call('admin.inventory.adjust', { warehouseId: form.get('warehouseId'), skuId: form.get('skuId'), change: Number(form.get('change')), reason: form.get('reason'), idempotencyKey: newIdempotencyKey() }); inventoryForm.reset(); closeModal(); await refreshAll(); message('库存已调整并写入流水。'); } catch (error) { message(error.message, true); } });
+  if (inventoryForm) inventoryForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = new FormData(inventoryForm);
+    const request = { warehouseId: form.get('warehouseId'), skuId: form.get('skuId'), change: Number(form.get('change')), reason: form.get('reason') };
+    const guide = global.MengshixianAdminInventoryGuide;
+    if (!guide) { message('库存操作页面未加载完整，请刷新后再提交。', true); return; }
+    const key = guide.adjustmentKey(state.admin && (state.admin.id || state.admin._id), request);
+    try {
+      await call('admin.inventory.adjust', { ...request, idempotencyKey: key });
+      guide.acknowledgeAdjustment(key);
+      inventoryForm.reset(); closeModal(); await refreshAll(); message('库存已调整并写入流水。');
+    } catch (error) {
+      const reminder = inventoryForm.querySelector('#inventoryGuideReminder');
+      if (reminder) reminder.textContent = `${error.message}。保存结果可能尚未确认；请先核对库存。保持当前填写内容重新提交时，系统会核对同一笔操作，不会重复计入。`;
+      message(error.message, true);
+    }
+  });
 
     const groupCampaignForm = document.getElementById('groupCampaignForm');
     if (groupCampaignForm) groupCampaignForm.addEventListener('submit', async (event) => {
@@ -515,6 +576,9 @@ async function refreshAll() {
 
     const mediaForm = document.getElementById('mediaForm');
     if (mediaForm && global.MengshixianMediaGuide) global.MengshixianMediaGuide.mount({ api, call, refresh: refreshAll, message, closeModal, assets: () => state.media });
+    if (global.MengshixianMediaMetadata) global.MengshixianMediaMetadata.mount({ call, refresh: refreshAll, message, openModal, closeModal, assets: () => state.media });
+    if (global.MengshixianBusinessReview) global.MengshixianBusinessReview.mount({ call, refresh: refreshAll, message });
+    if (global.MengshixianRefundReview) global.MengshixianRefundReview.mount({ call, refresh: refreshAll, message, getAdmin: () => state.admin });
 
     // 全局点击代理（page 按钮、add 按钮、row 操作按钮）
     document.addEventListener('click', async (event) => {
@@ -554,10 +618,8 @@ async function refreshAll() {
       const editDeliverySlot = target.closest('[data-edit-delivery-slot]');
       const editGroupCampaign = target.closest('[data-edit-group-campaign]');
       const approve = target.closest('[data-approve-import]');
-      const approveBusiness = target.closest('[data-approve-business]');
-      const rejectBusiness = target.closest('[data-reject-business]');
-      const approveRefund = target.closest('[data-approve-refund]');
-      const rejectRefund = target.closest('[data-reject-refund]');
+      const reviewBusiness = target.closest('[data-review-business]');
+      const reviewRefund = target.closest('[data-review-refund]');
       const transitionOrder = target.closest('[data-transition-order]');
       const publish = target.closest('[data-publish-product]');
       const publishSku = target.closest('[data-publish-sku]');
@@ -580,13 +642,11 @@ async function refreshAll() {
 
       try {
         if (approve) { const id = approve.dataset.approveImport; if (!global.MengshixianAdminOperationsConfirm.ask('importApprove', state.imports.find((row) => row._id === id))) return; await call('admin.imports.approve', { id }); await refreshAll(); message('已生成商品草稿。请点击该行“补齐商品资料”，核对图片、规格和价格后再决定上架。'); }
-        if (approveBusiness) { const id = approveBusiness.dataset.approveBusiness; if (!global.MengshixianAdminOperationsConfirm.ask('businessApprove', state.businessApplications.find((row) => row._id === id))) return; await call('admin.businessApplications.review', { id, decision: 'approved' }); await refreshAll(); message('企业申请已通过。'); }
-        if (rejectBusiness) { const id = rejectBusiness.dataset.rejectBusiness; if (!global.MengshixianAdminOperationsConfirm.ask('businessReject', state.businessApplications.find((row) => row._id === id))) return; await call('admin.businessApplications.review', { id, decision: 'rejected' }); await refreshAll(); message('企业申请已驳回。'); }
-        if (approveRefund) { const id = approveRefund.dataset.approveRefund; if (!global.MengshixianAdminOperationsConfirm.ask('refundApprove', state.refunds.find((row) => row._id === id))) return; await call('admin.refunds.review', { id, decision: 'approved' }); await refreshAll(); message('退款已审核通过。'); }
-        if (rejectRefund) { const id = rejectRefund.dataset.rejectRefund; if (!global.MengshixianAdminOperationsConfirm.ask('refundReject', state.refunds.find((row) => row._id === id))) return; await call('admin.refunds.review', { id, decision: 'rejected' }); await refreshAll(); message('退款申请已驳回。'); }
+        if (reviewBusiness) await global.MengshixianBusinessReview.open(state.businessApplications.find((row) => row._id === reviewBusiness.dataset.reviewBusiness));
+        if (reviewRefund) await global.MengshixianRefundReview.open(state.refunds.find((row) => row._id === reviewRefund.dataset.reviewRefund));
         if (publish) { const id = publish.dataset.publishProduct; if (!global.MengshixianAdminOperationsConfirm.ask('productPublish', state.products.find((row) => row._id === id))) return; await call('admin.products.setStatus', { id, status: 'on_sale' }); await refreshAll(); message('商品已上架。'); }
-        if (publishSku) { const id = publishSku.dataset.publishSku; if (!global.MengshixianAdminOperationsConfirm.ask('skuPublish', state.skus.find((row) => row._id === id))) return; await call('admin.skus.setStatus', { id, status: 'on_sale' }); await refreshAll(); message('SKU 已上架。'); }
-        if (offsaleSku) { const id = offsaleSku.dataset.offsaleSku; if (!global.MengshixianAdminOperationsConfirm.ask('skuOffsale', state.skus.find((row) => row._id === id))) return; await call('admin.skus.setStatus', { id, status: 'off_sale' }); await refreshAll(); message('SKU 已下架。'); }
+        if (publishSku) { const id = publishSku.dataset.publishSku; if (!global.MengshixianAdminOperationsConfirm.ask('skuPublish', state.skus.find((row) => row._id === id))) return; await call('admin.skus.setStatus', { id, status: 'on_sale' }); await refreshAll(); message('销售规格已上架。'); }
+        if (offsaleSku) { const id = offsaleSku.dataset.offsaleSku; if (!global.MengshixianAdminOperationsConfirm.ask('skuOffsale', state.skus.find((row) => row._id === id))) return; await call('admin.skus.setStatus', { id, status: 'off_sale' }); await refreshAll(); message('销售规格已下架。'); }
         if (transitionOrder) { const id = transitionOrder.dataset.transitionOrder; const status = transitionOrder.dataset.nextStatus; if (!global.MengshixianAdminOperationsConfirm.ask('orderTransition', state.orders.find((row) => row._id === id), { status })) return; await call('admin.orders.transition', { id, status }); await refreshAll(); message('订单履约状态已更新。'); }
       } catch (error) { message(error.message || '操作失败。', true); }
     });
@@ -654,6 +714,7 @@ async function refreshAll() {
       if (connection) connection.innerHTML = '<i></i>已连接';
       await refreshAll();
       if (PAGE_NAME === 'access' && global.MengshixianStaffPage) await global.MengshixianStaffPage.mount({ call, admin: state.admin, message });
+      if (PAGE_NAME === 'audit' && global.MengshixianAdminAuditTimeline) await global.MengshixianAdminAuditTimeline.mount({ call });
     } catch (error) {
       if (isAuthError(error)) {
         api.setToken('');

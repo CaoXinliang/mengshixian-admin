@@ -36,7 +36,29 @@
     return number > 0 ? `增加 ${number}` : `减少 ${Math.abs(number)}`;
   }
 
-  global.MengshixianAdminInventoryGuide = Object.freeze({ buildEntries, filterEntries, changeDescription });
+  const retryStorageKey = 'mengshixian-inventory-adjustment-pending-v1';
+  let pendingAdjustment = null;
+  function readPendingAdjustment() {
+    if (pendingAdjustment) return pendingAdjustment;
+    try { return JSON.parse(global.sessionStorage.getItem(retryStorageKey) || 'null'); }
+    catch (_) { return null; }
+  }
+  function adjustmentKey(adminId, request) {
+    const signature = JSON.stringify([adminId || '', request.warehouseId, request.skuId, request.change, request.reason]);
+    const pending = readPendingAdjustment();
+    if (pending && pending.signature === signature && pending.key) return pending.key;
+    const key = global.crypto && global.crypto.randomUUID ? global.crypto.randomUUID() : `stock-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    pendingAdjustment = { signature, key };
+    try { global.sessionStorage.setItem(retryStorageKey, JSON.stringify(pendingAdjustment)); } catch (_) { /* 当前页面仍可安全重试 */ }
+    return key;
+  }
+  function acknowledgeAdjustment(key) {
+    if (!readPendingAdjustment() || readPendingAdjustment().key !== key) return;
+    pendingAdjustment = null;
+    try { global.sessionStorage.removeItem(retryStorageKey); } catch (_) { /* 已收到服务端确认 */ }
+  }
+
+  global.MengshixianAdminInventoryGuide = Object.freeze({ buildEntries, filterEntries, changeDescription, adjustmentKey, acknowledgeAdjustment });
   const form = byId('inventoryForm');
   const keyword = byId('inventoryKeyword');
   if (!form || !keyword) return;
@@ -45,6 +67,9 @@
   const originalTable = byId('inventoryOriginalTable');
   const matches = byId('inventoryMatches');
   const matchRows = byId('inventoryMatchRows');
+  const emptyResults = byId('inventoryGuideEmpty');
+  const emptyTitle = byId('inventoryGuideEmptyTitle');
+  const emptyHint = byId('inventoryGuideEmptyHint');
   const nativeWarehouse = form.querySelector('input[name="warehouseId"]');
   const nativeSku = form.querySelector('input[name="skuId"]');
   const amount = form.querySelector('input[name="change"]');
@@ -134,6 +159,14 @@
     matchRows.replaceChildren();
     if (!data) return;
     const found = query ? filterEntries(data.entries, query) : data.entries;
+    matches.classList.toggle('has-rows', Boolean(found.length));
+    emptyResults.hidden = Boolean(found.length);
+    if (!found.length) {
+      emptyTitle.textContent = query ? '没有找到对应库存' : '暂无库存记录';
+      emptyHint.textContent = query
+        ? '换个商品、规格或仓库名称再找；没有记录时请先核对商品和仓库资料。'
+        : '取得真实库存资料后，点“库存调整”选择仓库和商品规格登记。';
+    }
     status.textContent = found.length
       ? `${query ? '找到' : '共有'} ${found.length} 条库存记录${found.length > 50 ? '，先显示前 50 条；输入名称可查找其余记录' : ''}。`
       : query ? '没有找到对应库存；请换个商品名称、规格或仓库名称。' : '暂无库存记录，可点击上方“库存调整”选择仓库和商品。';

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string]$OrderId,
-  [string]$EnvId = 'cloud1-d8gp843lt5454ada7',
+  [Parameter(Mandatory = $true)][string]$EnvId,
   [string]$CredentialFile = (Join-Path $env:LOCALAPPDATA 'MengshixianTest\demo-admin-credential.dpapi')
 )
 

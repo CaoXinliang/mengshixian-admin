@@ -109,7 +109,8 @@ async function createReceiptFixture() {
     storefrontMediaId: 'local://receipt-flow/storefront', businessLicenseMediaId: 'local://receipt-flow/license',
     contactName: '本地测试联系人', contactPhone: '13900139000'
   });
-  await call('admin.businessApplications.review', { id: application.application._id, decision: 'approved', priceLevel: 'b_standard' });
+  const reviewToken = (await call('admin.businessApplications.list')).rows.find((row) => row._id === application.application._id).reviewToken;
+  await call('admin.businessApplications.review', { id: application.application._id, decision: 'approved', priceLevel: 'b_standard', reviewToken });
 
   const warehouse = await call('admin.warehouses.upsert', { code: 'RECEIPT-WH', name: '本地测试仓', status: 'active' });
   const area = await call('admin.deliveryAreas.upsert', { name: '本地测试配送区', regionCodes: ['440300'], warehouseIds: [warehouse._id], status: 'active' });

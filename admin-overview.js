@@ -14,16 +14,19 @@
     { key: 'shipping', title: '配送中订单', href: 'orders.html?status=shipping', count: (state) => state.orders.filter((item) => item.status === 'shipping').length },
     { key: 'businesses', title: '企业申请待审核', href: 'businesses.html', count: (state) => state.businessApplications.filter((item) => item.status === 'pending').length },
     { key: 'refunds', title: '售后申请待审核', href: 'refunds.html', count: (state) => state.refunds.filter((item) => item.status === 'requested').length },
-    { key: 'products', title: '未上架商品', href: 'products.html', count: (state) => state.products.filter((item) => item.status !== 'on_sale').length }
+    { key: 'products', title: '未上架商品待核对', href: 'product-review.html', count: (state) => state.products.filter((item) => item.status !== 'on_sale').length },
+    { key: 'imports', title: '待审核商品表格', href: 'imports.html', count: (state) => state.imports.filter((item) => ['staged', 'reviewing', 'approved'].includes(item.status)).length },
+    { key: 'inventory', title: '可售为零库存记录', href: 'inventory.html', count: (state) => state.inventory.filter((item) => Number(item.available) <= 0).length }
   ];
-  const sources = { orders: 'orders', picking: 'orders', shipping: 'orders', businesses: 'businessApplications', refunds: 'refunds', products: 'products' };
+  const sources = { orders: 'orders', picking: 'orders', shipping: 'orders', businesses: 'businessApplications', refunds: 'refunds', products: 'products', imports: 'imports', inventory: 'inventory' };
+  const highlights = ['orders', 'products', 'inventory', 'refunds'];
   const availability = (state, key) => state.loadStates?.[key] || 'loading';
   const unavailableText = (state, key) => availability(state, key) === 'failed' ? '暂不可用' : '正在读取';
 
   function render(state) {
     const taskCards = document.getElementById('taskMetrics');
     if (!taskCards) return;
-    taskCards.innerHTML = tasks.map((task) => {
+    taskCards.innerHTML = tasks.filter((task) => highlights.includes(task.key)).map((task) => {
       if (availability(state, sources[task.key]) !== 'ready') return `<a class="task-card" href="${task.href}"><span class="task-label">${task.title}</span><strong>${unavailableText(state, sources[task.key])}</strong><span class="task-action">进入页面核对 →</span></a>`;
       const count = task.count(state);
       return `<a class="task-card${count ? ' is-urgent' : ''}" href="${task.href}"><span class="task-label">${task.title}</span><strong>${count}</strong><span class="task-action">进入处理 <b>→</b></span></a>`;

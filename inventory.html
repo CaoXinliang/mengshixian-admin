@@ -18,10 +18,11 @@
       <header class="workspace-head" id="adminHeader"></header>
       <p class="notice" id="globalMessage" aria-live="polite"></p>
       <section class="panel is-active domain-panel" data-panel="inventory">
-        <div class="domain-panel-head"><div><h3>库存列表</h3><p>先找商品，再核对仓库和规格；调整前请确认数量与原因。</p></div><span class="domain-context">数量以提交时的系统核对为准</span></div>
+        <div class="inventory-task"><div><p class="eyebrow">库存 · 当前任务</p><h2>先找规格，再核对仓库</h2><p>找到要调整的商品和销售规格，核对所在仓库、现有数量与已留给订单的数量，再登记真实变动。</p></div><aside><strong>调整会影响可卖数量</strong><span>请取得实际盘点或补货资料，填明确的增加／减少数量和原因。提交前会再次显示核对内容。</span><a href="opening-check.html">查看开店检查 →</a></aside></div>
         <div class="inventory-guide-search"><label for="inventoryKeyword">找商品、规格或仓库</label><input id="inventoryKeyword" type="search" placeholder="输入商品名称、规格或仓库名称" autocomplete="off"><p id="inventoryGuideStatus" role="status" aria-live="polite">正在准备商品查询…</p></div>
+        <h3 class="inventory-records-title">库存记录</h3>
         <div class="table-wrap inventory-original" id="inventoryOriginalTable"><table><thead><tr><th class="col-idx">序号</th><th>仓库</th><th>商品规格</th><th>现有数量</th><th>已留给订单</th><th>可卖数量</th><th>更新时间</th></tr></thead><tbody id="inventoryTable"></tbody></table></div>
-        <div class="table-wrap inventory-matches" id="inventoryMatches" hidden><table><thead><tr><th>商品与规格</th><th>仓库</th><th>现有数量</th><th>已留给订单</th><th>可卖数量</th><th>操作</th></tr></thead><tbody id="inventoryMatchRows"></tbody></table></div>
+        <div class="table-wrap inventory-matches" id="inventoryMatches" hidden><div class="inventory-guide-empty" id="inventoryGuideEmpty" hidden><strong id="inventoryGuideEmptyTitle">暂无库存记录</strong><p id="inventoryGuideEmptyHint">取得真实库存资料后，点“库存调整”选择仓库和商品规格登记。</p></div><table><thead><tr><th>商品与规格</th><th>仓库</th><th>现有数量</th><th>已留给订单</th><th>可卖数量</th><th>操作</th></tr></thead><tbody id="inventoryMatchRows"></tbody></table></div>
       </section>
       <div class="hidden-forms"></div>
     </section>

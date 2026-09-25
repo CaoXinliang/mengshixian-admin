@@ -19,7 +19,7 @@
       <header class="workspace-head" id="adminHeader"></header>
       <p class="notice" id="globalMessage" aria-live="polite"></p>
       <section class="panel is-active domain-panel" data-panel="orders">
-        <div class="domain-panel-head"><div><h3>订单处理</h3><p>先看下方待办，再按状态找订单。每条订单的下一步会写在列表里。</p></div><span class="domain-context">状态以最新加载结果为准</span></div>
+        <div class="domain-panel-head"><div><p class="eyebrow">订单 · 当前任务</p><h3>先处理待办，再逐笔核对</h3><p>发货、送达与收款是不同操作；点开当前订单核对后再确认。</p></div><span class="domain-context">以本次接口读取的状态为准</span></div>
         <section class="order-guide" aria-label="订单待办引导"><div class="order-guide-heading"><h4>现在先处理</h4><p id="orderGuideMessage" role="status" aria-live="polite">正在读取订单…</p></div><div class="order-guide-cards" id="orderGuideCards"></div></section>
         <div class="filter-bar"><input id="orderFilterKeyword" aria-label="搜索订单号或收货人" placeholder="订单号或收货人"><select id="orderFilterStatus" aria-label="订单状态"><option value="">全部状态</option><option value="pending_payment">待支付</option><option value="pending_confirmation">待确认</option><option value="picking">拣货中</option><option value="shipping">运输中</option><option value="delivered">已送达</option><option value="completed">已完成</option><option value="cancelled">已取消</option></select><button id="orderFilterBtn" class="primary" type="button">筛选</button><button id="orderFilterReset" type="button">重置</button></div>
         <p class="order-guide-filter-hint" id="orderGuideFilterHint" role="status"></p>

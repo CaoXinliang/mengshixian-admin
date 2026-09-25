@@ -13,6 +13,7 @@ module.exports = async function actualCatalogFlow({ send, evaluate, pause, socke
 
   const requests = [];
   let holdMappingPreview = false, releaseMappingPreview;
+  let loseNextInventoryReply = false;
   const binding = 'localCatalogApi';
   const handler = async ({ data }) => {
     const event = JSON.parse(data);
@@ -27,6 +28,10 @@ module.exports = async function actualCatalogFlow({ send, evaluate, pause, socke
       response = { id: input.id, data: input.action === '__local.mediaUrls'
         ? { fileList: input.payload.fileList.map(fileID => ({ fileID, tempFileURL: fixture.mediaUrl(fileID) })) }
         : await fixture.call(input.action, input.payload) };
+      if (loseNextInventoryReply && input.action === 'admin.inventory.adjust') {
+        loseNextInventoryReply = false;
+        response = { id: input.id, error: { code: 'NETWORK_TIMEOUT', message: '本地模拟：库存已记账，但成功回执丢失' } };
+      }
     } catch (error) {
       response = { id: input.id, error: { code: error.code, message: error.message } };
     }
@@ -175,12 +180,20 @@ module.exports = async function actualCatalogFlow({ send, evaluate, pause, socke
     if (process.argv.includes('--actual-catalog-media')) {
       await require('./catalog-media-browser.cjs')({ fixture, send, evaluate, pause, waitFor, productCode });
       if (process.argv.includes('--actual-catalog-ready')) {
-        const context = {fixture, send, evaluate, pause, waitFor, productCode};
+        const context = {fixture, send, evaluate, pause, waitFor, productCode,
+          loseNextInventoryReply: () => { loseNextInventoryReply = true; }};
         await require('./catalog-pricing-browser.cjs')(context);
         await require('./catalog-inventory-browser.cjs')(context);
         await require('./catalog-delivery-browser.cjs')(context);
         await require('./catalog-publish-browser.cjs')(context);
         await require('./sku-gate-browser.cjs')(context);
+        await send('Page.navigate', { url: 'http://127.0.0.1:8765/opening-check.html' });
+        await waitFor("document.querySelector('#openingCheckStatus')?.textContent.includes('基础资料均有记录')");
+        const openingResult = await evaluate("({ items: document.querySelector('#openingCheckItems').textContent, payment: document.querySelector('#openingCheckPayment').textContent, status: document.querySelector('#openingCheckStatus').textContent })");
+        assert.match(openingResult.items, /已找到配送区域[\s\S]*已找到配送时段[\s\S]*已找到库存记录/);
+        assert.match(openingResult.payment, /尚未核验/);
+        assert.doesNotMatch(openingResult.status, /可以开店|已可下单/);
+        console.log('Opening check reads the same local actual API data; existing records still require delivery, quote and payment verification');
       }
     }
   } finally {

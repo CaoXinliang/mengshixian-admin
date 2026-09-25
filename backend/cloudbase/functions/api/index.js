@@ -1,9 +1,12 @@
 process.env.TZ = 'Asia/Shanghai';
 const cloud = require('wx-server-sdk');
+const nodeSdk = require('@cloudbase/node-sdk');
 const { createApplication } = require('./app');
 const { createCloudStore } = require('./lib/cloud-store');
+const { createCloudMediaStorage } = require('./lib/cloud-media-storage');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+const directStorage = createCloudMediaStorage({ cloud, nodeSdk });
 
 const db = cloud.database();
 // Ensure the login_sessions collection exists. CloudBase will NOT auto-create
@@ -44,6 +47,8 @@ const app = createApplication({
   storageDeleter: async (fileIds) => {
     if (typeof cloud.deleteFile === 'function' && fileIds.length) await cloud.deleteFile({ fileList: fileIds });
   },
+  storageTicketIssuer: directStorage.issueTicket,
+  storageVerifier: directStorage.verify,
   getPhoneByCode: async (code) => {
     if (!code || typeof cloud.getOpenData !== 'function') return '';
     try {

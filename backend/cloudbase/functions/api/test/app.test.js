@@ -218,6 +218,23 @@ async function run() {
   assert.equal(managedMedia.ok, true);
   assert.equal(managedMedia.data.assetKey, 'category-test');
   assert.equal(managedMedia.data.checksum, 'checksum-v1');
+  const metadataWithoutLogin = await call(app, 'admin.media.updateMetadata', { id: managedMedia.data._id, name: '无权限修改' });
+  assert.equal(metadataWithoutLogin.ok, false, '未登录不得修改素材资料');
+  const metadataFileInjection = await call(app, 'admin.media.updateMetadata', { adminToken, id: managedMedia.data._id, name: '错误替换', fileId: 'cloud://other/file.jpg' });
+  assert.equal(metadataFileInjection.error.code, 'VALIDATION_ERROR', '改资料入口不得接受文件替换');
+  const invalidMetadataSource = await call(app, 'admin.media.updateMetadata', { adminToken, id: managedMedia.data._id, name: '错误来源', source: 'unverified_source' });
+  assert.equal(invalidMetadataSource.error.code, 'VALIDATION_ERROR', '服务端不得把未知来源悄悄改成后台上传');
+  const invalidMetadataPlatforms = await call(app, 'admin.media.updateMetadata', { adminToken, id: managedMedia.data._id, name: '错误适用端', targetPlatforms: 'miniapp' });
+  assert.equal(invalidMetadataPlatforms.error.code, 'VALIDATION_ERROR', '服务端不得把错误格式的适用端悄悄扩大为全部');
+  const mediaMetadata = await call(app, 'admin.media.updateMetadata', { adminToken, id: managedMedia.data._id, metadataRevision: managedMedia.data.metadataRevision, name: '分类图片（已核对）', source: 'client', temporary: false, targetPlatforms: ['miniapp'], startAt: '', endAt: '' });
+  assert.equal(mediaMetadata.ok, true);
+  assert.equal(mediaMetadata.data.fileId, managedMedia.data.fileId, '改资料不更换文件');
+  assert.equal(mediaMetadata.data.version, 1, '改资料不伪造新版本');
+  assert.equal(mediaMetadata.data.checksum, 'checksum-v1', '改资料不清除文件校验值');
+  assert.equal(mediaMetadata.data.name, '分类图片（已核对）');
+  assert.deepEqual(mediaMetadata.data.targetPlatforms, ['miniapp']);
+  const metadataAudit = await call(app, 'admin.audit.list', { adminToken, page: 1, pageSize: 100 });
+  assert.ok(metadataAudit.data.rows.some((row) => row.action === 'media.metadata.update' && row.targetId === managedMedia.data._id), '改资料须留下操作记录');
   const uploaded = await call(app, 'admin.media.upload', { adminToken, type: 'image', fileName: '统一文字图.png', mimeType: 'image/png', sizeBytes: 8, contentBase64: Buffer.from('text-img').toString('base64') });
   assert.equal(uploaded.ok, true, '管理员应能通过受控后台接口上传素材');
   assert.equal(uploaded.data.fileId, 'cloud://test/uploads/manual.png');
@@ -267,6 +284,8 @@ async function run() {
   assert.ok(earlyReview.data.issues.some((issue) => issue.includes('主图')));
   const skuWithoutPrice = await call(app, 'admin.skus.setStatus', { adminToken, id: managedSku.data._id, status: 'on_sale' });
   assert.equal(skuWithoutPrice.error.code, 'PRODUCT_NOT_READY', '无真实价格的规格不得启用销售');
+  const reversedPriceWindow = await call(app, 'admin.prices.upsert', { adminToken, skuId: managedSku.data._id, scopeType: 'public', amountCent: 4600, status: 'active', validFrom: '2026-09-27T02:00:00.000Z', validTo: '2026-09-26T02:00:00.000Z' });
+  assert.equal(reversedPriceWindow.error.code, 'VALIDATION_ERROR', '服务端必须拒绝倒置的价格生效区间');
   const managedPrice = await call(app, 'admin.prices.upsert', { adminToken, skuId: managedSku.data._id, scopeType: 'public', amountCent: 4600, status: 'active' });
   assert.equal(managedPrice.ok, true);
   const publishSku = await call(app, 'admin.skus.setStatus', { adminToken, id: managedSku.data._id, status: 'on_sale' });
@@ -364,8 +383,21 @@ async function run() {
   assert.ok(deliveryOptions.data.warehouses.some((item) => item._id === warehouse.data._id), '公开配送选项必须包含启用仓库事实');
   const freight = await call(app, 'admin.freightRules.upsert', { adminToken, name: '测试运费', deliveryAreaId: area.data._id, warehouseId: warehouse.data._id, baseFeeCent: 800, freeThresholdCent: 10000, status: 'active' });
   assert.equal(freight.ok, true, JSON.stringify(freight));
+  const wrongFreightAudience = await call(app, 'admin.freightRules.upsert', { adminToken, id: freight.data._id, name: '测试运费', deliveryAreaId: area.data._id, baseFeeCent: 800, customerType: 'unknown', status: 'active' });
+  assert.equal(wrongFreightAudience.error.code, 'VALIDATION_ERROR', '服务端不得接受不明顾客范围');
+  const reversedFreightWindow = await call(app, 'admin.freightRules.upsert', { adminToken, id: freight.data._id, name: '测试运费', deliveryAreaId: area.data._id, baseFeeCent: 800, validFrom: '2026-09-27T02:00:00.000Z', validTo: '2026-09-26T02:00:00.000Z', status: 'active' });
+  assert.equal(reversedFreightWindow.error.code, 'VALIDATION_ERROR', '服务端不得接受倒置的运费生效区间');
+  assert.equal((await store.findOne('freight_rules', { _id: freight.data._id })).customerType || '', '', '无效修改不得改变原运费规则');
   const deliverySlot = await call(app, 'admin.deliverySlots.upsert', { adminToken, name: '上午配送', deliveryAreaId: area.data._id, warehouseId: warehouse.data._id, startTime: '09:00', endTime: '12:00', status: 'active' });
   assert.equal(deliverySlot.ok, true);
+  const scheduledSlot = await call(app, 'admin.deliverySlots.upsert', { adminToken, name: '预约配送', deliveryAreaId: area.data._id, startTime: '13:00', endTime: '15:00', capacity: 4, sort: 9, validFrom: '2026-09-26T02:00:00.000Z', validTo: '2026-09-27T02:00:00.000Z', status: 'draft' });
+  assert.equal(scheduledSlot.ok, true);
+  const reversedSlot = await call(app, 'admin.deliverySlots.upsert', { adminToken, id: scheduledSlot.data._id, name: '预约配送', deliveryAreaId: area.data._id, startTime: '13:00', endTime: '15:00', validFrom: '2026-09-27T02:00:00.000Z', validTo: '2026-09-26T02:00:00.000Z', status: 'draft' });
+  assert.equal(reversedSlot.error.code, 'VALIDATION_ERROR', '配送时段日期倒置须由服务端拒绝');
+  const revisedSlot = await call(app, 'admin.deliverySlots.upsert', { adminToken, id: scheduledSlot.data._id, name: '预约配送', deliveryAreaId: area.data._id, startTime: '13:00', endTime: '15:00', validFrom: '2026-09-26T02:00:00.000Z', validTo: '2026-09-27T02:00:00.000Z', status: 'draft' });
+  assert.equal(revisedSlot.ok, true);
+  assert.equal(revisedSlot.data.capacity, 4, '普通编辑未传容量时必须保留原记录，不冒充已实现限单');
+  assert.equal(revisedSlot.data.sort, 9, '普通编辑未传排序时必须保留原显示顺序');
   const price = await call(app, 'admin.prices.upsert', { adminToken, skuId: 'sku-1', scopeType: 'public', amountCent: 2500, status: 'active', source: 'ai_generated', temporary: true, demoNote: '演示价格，待甲方确认后替换' });
   assert.equal(price.ok, true);
 
@@ -439,6 +471,8 @@ async function run() {
   assert.equal((await call(app, 'admin.orders.transition', { adminToken, id: demoOrder.data.order._id, status: 'shipping' })).error.code, 'ORDER_STATUS_TRANSITION_INVALID', '已完成订单不能回退到配送中');
   const repeatedAdjustment = await call(app, 'admin.inventory.adjust', { adminToken, warehouseId: warehouse.data._id, skuId: 'sku-1', change: 20, reason: 'initial_stock', idempotencyKey: 'inventory-initial-1' });
   assert.equal(repeatedAdjustment.data.idempotent, true, '相同库存幂等键不能重复调整');
+  const conflictingAdjustment = await call(app, 'admin.inventory.adjust', { adminToken, warehouseId: warehouse.data._id, skuId: 'sku-1', change: 21, reason: 'initial_stock', idempotencyKey: 'inventory-initial-1' });
+  assert.equal(conflictingAdjustment.error.code, 'IDEMPOTENCY_CONFLICT', '相同幂等键不能被改成另一笔库存调整');
 
   const businessApplication = await call(app, 'auth.applyBusiness', { companyName: '测试餐饮企业', storeName: '测试餐饮门店', storeAddress: '测试路1号', mainBusinessType: 'restaurant', unifiedCode: '123456789012345678', storefrontMediaId: 'cloud://test/storefront.jpg', businessLicenseMediaId: 'cloud://test/license.jpg', contactName: '采购员', contactPhone: '13900139000' });
   assert.equal(businessApplication.ok, true);
@@ -449,7 +483,8 @@ async function run() {
   assert.equal(Object.hasOwn(storedApplication, 'contactPhone'), false, '企业申请不得保存明文联系人手机号');
   assert.equal(storedApplication.companyName, '测试餐饮企业', '企业申请必须保存前端提交的企业名称');
   assert.equal(storedApplication.unifiedCode, '123456789012345678', '企业申请必须保存统一社会信用代码供审核建档');
-  const approvedBusiness = await call(app, 'admin.businessApplications.review', { adminToken, id: businessApplication.data.application._id, decision: 'approved', priceLevel: 'b_standard' });
+  const businessReviewToken = (await call(app, 'admin.businessApplications.list', { adminToken })).data.rows.find((row) => row._id === businessApplication.data.application._id).reviewToken;
+  const approvedBusiness = await call(app, 'admin.businessApplications.review', { adminToken, id: businessApplication.data.application._id, decision: 'approved', priceLevel: 'b_standard', reviewToken: businessReviewToken });
   assert.equal(approvedBusiness.ok, true);
   assert.equal(approvedBusiness.data.organization.name, '测试餐饮企业', '审核建档必须使用申请中的企业名称');
   const businessUser = await call(app, 'auth.me');
@@ -533,7 +568,8 @@ async function run() {
   assert.equal(refundRequest.ok, true);
   const duplicateRefundRequest = await call(app, 'refunds.request', { orderId: paidOrder.data.order._id, idempotencyKey: 'refund-2', amountCent: paidOrder.data.order.totalAmountCent, reason: '重复申请' });
   assert.equal(duplicateRefundRequest.error.code, 'REFUND_ALREADY_PENDING', '同一订单不能存在多笔处理中的退款申请');
-  const refundReview = await call(app, 'admin.refunds.review', { adminToken, id: refundRequest.data.refund._id, decision: 'approved', reviewNote: '测试通过' });
+  const refundDetail = await call(app, 'admin.refunds.reviewDetail', { adminToken, id: refundRequest.data.refund._id });
+  const refundReview = await call(app, 'admin.refunds.review', { adminToken, id: refundRequest.data.refund._id, decision: 'approved', reviewNote: '测试通过', reviewToken: refundDetail.data.reviewToken });
   assert.equal(refundReview.data.refund.status, 'processing');
   const refundNotify = await call(app, 'refunds.notify', { refundNo: refundRequest.data.refund.refundNo, refundTransactionId: 'wx-refund-001', amountCent: refundRequest.data.refund.amountCent });
   assert.equal(refundNotify.ok, true);

@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="admin-page-summary.css">
   <link rel="stylesheet" href="admin-domain-pages.css">
   <link rel="stylesheet" href="admin-order-guide.css">
+  <link rel="stylesheet" href="admin-refund-review.css">
 </head>
 <body>
   <main class="admin-shell" id="adminShell">
@@ -17,8 +18,8 @@
     <section class="workspace">
       <header class="workspace-head" id="adminHeader"></header>
       <p class="notice" id="globalMessage" aria-live="polite"></p>
-      <section class="panel is-active domain-panel" data-panel="refunds">
-        <div class="domain-panel-head"><div><h3>退款处理</h3><p>先审核新申请，再跟进处理中的退款。审核通过不代表款项已经退回。</p></div><span class="domain-context">到账结果以服务端确认为准</span></div>
+      <section class="panel is-active domain-panel operation-panel" data-panel="refunds">
+        <div class="operation-task"><div><p class="eyebrow">订单 · 售后</p><h2>先核对申请，再决定</h2><p>逐笔打开原订单与退款申请，核对金额和实际收款；审核通过后继续跟进真实退款结果。</p></div><aside><strong>审核通过不等于钱已退回</strong><span>页面会分开显示审核状态与退款状态。真实退款渠道尚未验收，不能以此页面作为到账凭据。</span><a href="orders.html">查看原订单 →</a></aside></div>
         <section class="order-guide" aria-label="退款待办引导"><div class="order-guide-heading"><h4>现在先处理</h4><p id="refundGuideMessage" role="status" aria-live="polite">正在读取退款申请…</p></div><div class="order-guide-cards" id="refundGuideCards"></div></section>
         <div class="filter-bar"><label class="order-guide-filter-label" for="refundGuideStatus">查看哪类退款</label><select id="refundGuideStatus"><option value="">全部退款</option><option value="requested">待审核</option><option value="processing">退款处理中</option><option value="reviewing">审核中</option><option value="succeeded">已退款</option><option value="rejected">已驳回</option></select></div>
         <p class="order-guide-filter-hint" id="refundGuideFilterHint" role="status"></p>
@@ -27,6 +28,14 @@
       <div class="hidden-forms"></div>
     </section>
   </main>
+  <dialog id="refundReviewDialog" class="refund-review-dialog" aria-labelledby="refundReviewTitle">
+    <div class="refund-review-head"><h2 id="refundReviewTitle">核对退款申请</h2><button type="button" id="refundReviewClose" aria-label="关闭核对">×</button></div>
+    <p id="refundReviewStatus" role="status" aria-live="polite">正在读取申请与原订单…</p>
+    <div id="refundReviewDetail" class="refund-review-detail"></div>
+    <p class="refund-review-warning">当前申请按订单金额提出，尚未记录具体退款商品、数量或售后图片；请人工核实，不要把审核通过当作款项已退回。</p>
+    <label class="refund-review-confirm"><input type="checkbox" id="refundReviewConfirmed">我已核对申请、原订单和实际收款；理解审核通过仅进入退款处理中</label>
+    <div class="refund-review-actions"><button type="button" data-refund-decision="rejected" disabled>驳回申请</button><button type="button" class="primary" data-refund-decision="approved" disabled>确认审核通过</button></div>
+  </dialog>
   <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true">
       <div class="modal-header"><h3 id="modalTitle">表单</h3><button type="button" class="modal-close" id="modalClose" aria-label="关闭">×</button></div>
@@ -53,6 +62,7 @@
   <script src="admin-page-summary.js"></script>
   <script src="admin-order-guide.js"></script>
   <script src="admin-operations-confirm.js"></script>
+  <script src="admin-refund-review.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

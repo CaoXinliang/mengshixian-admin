@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EnvId = 'cloud1-d8gp843lt5454ada7', [switch]$DryRun)
+param([Parameter(Mandatory = $true)][string]$EnvId, [switch]$DryRun)
 
 $ErrorActionPreference = 'Stop'
 if (-not (Get-Command tcb -ErrorAction SilentlyContinue)) { throw '未找到 CloudBase CLI（tcb）。' }

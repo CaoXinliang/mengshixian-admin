@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [string]$EnvId = 'cloud1-d8gp843lt5454ada7',
+  [Parameter(Mandatory = $true)][string]$EnvId,
   [string]$FunctionName = 'api',
   [string]$CredentialFile = (Join-Path $env:LOCALAPPDATA 'MengshixianTest\demo-admin-credential.dpapi'),
   [string]$FixtureFile = (Join-Path $PSScriptRoot '..\data\product-demo-50.json'),

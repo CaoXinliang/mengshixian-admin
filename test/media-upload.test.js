@@ -17,7 +17,7 @@ const mediaGuide = fs.readFileSync(path.join(root, 'admin-media-guide.js'), 'utf
 const api = fs.readFileSync(path.join(root, 'api-client.js'), 'utf8');
 const config = fs.readFileSync(path.join(root, 'config.js'), 'utf8');
 
-assert.match(config, /cloud1-d8gp843lt5454ada7/, '后台必须指向当前 CloudBase 环境');
+assert.match(config, /cloud1-d8gcnzmltc1113cd7/, '后台必须指向当前 CloudBase 环境');
 assert.match(html, /admin-forms\.js/, '后台页面必须加载共享表单模块');
 assert.match(forms, /name="uploadFile"\s+type="file"/, '素材表单必须提供人工选择文件入口');
 assert.match(forms, /上传并登记素材/, '素材表单必须明确人工上传动作');

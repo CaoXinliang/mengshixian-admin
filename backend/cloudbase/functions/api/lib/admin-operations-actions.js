@@ -1,5 +1,5 @@
 const { fail } = require('./response');
-const { decryptText } = require('./security');
+const { decryptText, sha256 } = require('./security');
 const { inventoryId, inventoryLedgerId } = require('./transaction-ids');
 const { hasPermission } = require('./permissions');
 const { cents, expireReservations, expireGroups, orderReservations, releaseReservation } = require('./commerce');
@@ -9,7 +9,13 @@ const { collectPageMatches } = require('./collection-read');
 const { customerLabel } = require('./pricing-targets');
 const { nowIso, string, integer, demoMetadata, pageParams, pick, safeOrder, safeUser } = require('./api-values');
 
-function createAdminOperationsActions({ store, piiEncryptionKey, demoMode, clock, audit, getAdmin, validateMediaReference, pricingTargets }) {
+function createAdminOperationsActions({ store, piiEncryptionKey, demoMode, clock, audit, getAdmin, validateMediaReference, pricingTargets, mediaUrlResolver }) {
+  function businessReviewToken(application) {
+    const fields = ['_id', 'status', 'userId', 'companyName', 'storeName', 'storeAddress', 'mainBusinessType', 'unifiedCode',
+      'storefrontMediaId', 'businessLicenseMediaId', 'contactName', 'contactPhoneCiphertext', 'salesCode', 'chainEnabled', 'submittedAt', 'updatedAt'];
+    return sha256(JSON.stringify(fields.map((field) => application[field] ?? null)));
+  }
+
   async function adminUpsertPrice(payload) {
     const { admin } = await getAdmin(payload, 'pricing.write');
     const skuId = string(payload.skuId, 'SKU ID', { required: true, max: 80 });
@@ -29,6 +35,7 @@ function createAdminOperationsActions({ store, piiEncryptionKey, demoMode, clock
     };
     if (patch.validFrom && Number.isNaN(new Date(patch.validFrom).getTime())) fail('VALIDATION_ERROR', '生效开始时间不合法。');
     if (patch.validTo && Number.isNaN(new Date(patch.validTo).getTime())) fail('VALIDATION_ERROR', '生效结束时间不合法。');
+    if (patch.validFrom && patch.validTo && new Date(patch.validFrom).getTime() > new Date(patch.validTo).getTime()) fail('VALIDATION_ERROR', '生效结束时间不能早于开始时间。');
     let rule;
     if (payload.id) {
       const id = string(payload.id, '价格规则 ID', { max: 80 });
@@ -170,34 +177,60 @@ function createAdminOperationsActions({ store, piiEncryptionKey, demoMode, clock
     const id = string(payload.id, '企业申请 ID', { required: true, max: 80 });
     const decision = string(payload.decision, '审核结论', { required: true, max: 20 });
     if (!['approved', 'rejected'].includes(decision)) fail('VALIDATION_ERROR', '审核结论不合法。');
+    const reviewToken = string(payload.reviewToken, '申请核对凭据', { required: true, max: 128 });
+    if (typeof store.runTransaction !== 'function') fail('TRANSACTION_NOT_AVAILABLE', '当前环境不能安全审核企业申请。');
     const application = await store.findOne('business_applications', { _id: id });
     if (!application) fail('BUSINESS_APPLICATION_NOT_FOUND', '企业申请不存在。');
-    if (application.status !== 'pending') fail('BUSINESS_APPLICATION_REVIEWED', '该企业申请已处理，不能重复审核。');
-    const timestamp = nowIso(clock);
+    const knownOrganization = decision === 'approved' ? await store.findOne('customer_organizations', { unifiedCode: application.unifiedCode }) : null;
     const reviewNote = string(payload.reviewNote, '审核备注', { max: 300 });
-    if (decision === 'rejected') {
-      await store.update('business_applications', id, { status: 'rejected', reviewedBy: admin._id, reviewedAt: timestamp, reviewNote, updatedAt: timestamp });
-      await store.update('users', application.userId, { businessStatus: 'rejected', updatedAt: timestamp });
-      await audit(admin, 'organizations.application.reject', 'business_application', id, { userId: application.userId, reviewNote });
-      return { id, status: 'rejected' };
-    }
-    let organization = await store.findOne('customer_organizations', { unifiedCode: application.unifiedCode });
-    if (!organization) organization = await store.create('customer_organizations', { name: application.companyName, unifiedCode: application.unifiedCode, status: 'active', createdAt: timestamp, updatedAt: timestamp, approvedBy: admin._id });
-    else if (organization.status !== 'active') {
-      await store.update('customer_organizations', organization._id, { status: 'active', updatedAt: timestamp });
-      organization = { ...organization, status: 'active' };
-    }
     const priceLevel = string(payload.priceLevel, '价格等级', { max: 40 });
-    await store.update('users', application.userId, { userType: 'b', organizationId: organization._id, priceLevel, businessStatus: 'approved', updatedAt: timestamp });
-    await store.update('business_applications', id, { status: 'approved', organizationId: organization._id, reviewedBy: admin._id, reviewedAt: timestamp, reviewNote, updatedAt: timestamp });
-    await audit(admin, 'organizations.application.approve', 'business_application', id, { userId: application.userId, organizationId: organization._id, priceLevel });
-    return { id, status: 'approved', organization: pick(organization, ['_id', 'name', 'unifiedCode', 'status']) };
+    return store.runTransaction(async (tx) => {
+      const current = await tx.getById('business_applications', id);
+      if (!current) fail('BUSINESS_APPLICATION_NOT_FOUND', '企业申请不存在。');
+      if (current.status !== 'pending') fail('BUSINESS_APPLICATION_REVIEWED', '该企业申请已处理，不能重复审核。');
+      if (current.unifiedCode !== application.unifiedCode || reviewToken !== businessReviewToken(current)) fail('BUSINESS_APPLICATION_CHANGED', '企业申请资料已变化，请刷新后重新核对。');
+      if (!await tx.getById('users', current.userId)) fail('USER_NOT_FOUND', '申请人不存在，不能完成审核。');
+      const timestamp = nowIso(clock);
+      if (decision === 'rejected') {
+        await tx.update('business_applications', id, { status: 'rejected', reviewedBy: admin._id, reviewedAt: timestamp, reviewNote, updatedAt: timestamp });
+        await tx.update('users', current.userId, { businessStatus: 'rejected', updatedAt: timestamp });
+        await audit(admin, 'organizations.application.reject', 'business_application', id, { userId: current.userId, reviewNote }, tx);
+        return { id, status: 'rejected' };
+      }
+      const organizationId = knownOrganization?._id || `organization-${sha256(current.unifiedCode).slice(0, 32)}`;
+      let organization = await tx.getById('customer_organizations', organizationId);
+      if (organization && organization.unifiedCode !== current.unifiedCode) fail('ORGANIZATION_CONFLICT', '企业资料不一致，请刷新后重新核对。');
+      if (!organization) organization = await tx.set('customer_organizations', organizationId, { name: current.companyName, unifiedCode: current.unifiedCode, status: 'active', createdAt: timestamp, updatedAt: timestamp, approvedBy: admin._id });
+      else if (organization.status !== 'active') {
+        await tx.update('customer_organizations', organizationId, { status: 'active', updatedAt: timestamp });
+        organization = { ...organization, status: 'active' };
+      }
+      await tx.update('users', current.userId, { userType: 'b', organizationId, priceLevel, businessStatus: 'approved', updatedAt: timestamp });
+      await tx.update('business_applications', id, { status: 'approved', organizationId, reviewedBy: admin._id, reviewedAt: timestamp, reviewNote, updatedAt: timestamp });
+      await audit(admin, 'organizations.application.approve', 'business_application', id, { userId: current.userId, organizationId, priceLevel }, tx);
+      return { id, status: 'approved', organization: pick(organization, ['_id', 'name', 'unifiedCode', 'status']) };
+    });
   }
 
   async function adminBusinessApplications(payload) {
     await getAdmin(payload, 'organizations.read');
     const listed = await store.list('business_applications', { orderBy: [{ field: 'submittedAt', direction: 'desc' }], ...pageParams(payload) });
-    return { ...listed, rows: listed.rows.map((item) => pick(item, ['_id', 'userId', 'companyName', 'unifiedCode', 'contactName', 'contactPhoneMasked', 'status', 'submittedAt', 'reviewedBy', 'reviewedAt', 'reviewNote', 'organizationId'])) };
+    return { ...listed, rows: listed.rows.map((item) => ({ ...pick(item, ['_id', 'userId', 'companyName', 'storeName', 'storeAddress', 'mainBusinessType', 'unifiedCode', 'contactName', 'contactPhoneMasked', 'status', 'submittedAt', 'reviewedBy', 'reviewedAt', 'reviewNote', 'organizationId']), reviewToken: businessReviewToken(item) })) };
+  }
+
+  async function adminBusinessApplicationReviewDetail(payload) {
+    await getAdmin(payload, 'organizations.read');
+    const id = string(payload.id, '企业申请 ID', { required: true, max: 80 });
+    const application = await store.findOne('business_applications', { _id: id });
+    if (!application) fail('BUSINESS_APPLICATION_NOT_FOUND', '企业申请不存在。');
+    const fileIds = [application.storefrontMediaId, application.businessLicenseMediaId].filter(Boolean);
+    const urls = fileIds.length && typeof mediaUrlResolver === 'function' ? await mediaUrlResolver([...new Set(fileIds)]) : {};
+    return {
+      ...pick(application, ['_id', 'companyName', 'storeName', 'storeAddress', 'mainBusinessType', 'unifiedCode', 'contactName', 'contactPhoneMasked', 'status', 'submittedAt']),
+      reviewToken: businessReviewToken(application),
+      storefrontPreviewUrl: urls && urls[application.storefrontMediaId] || '',
+      licensePreviewUrl: urls && urls[application.businessLicenseMediaId] || ''
+    };
   }
 
   async function adminUpsertWarehouse(payload) {
@@ -230,6 +263,10 @@ function createAdminOperationsActions({ store, piiEncryptionKey, demoMode, clock
     const result = await store.runTransaction(async (tx) => {
       const existingLedger = await tx.getById('inventory_ledger', ledgerDocumentId);
       if (existingLedger) {
+        if (existingLedger.warehouseId !== warehouseId || existingLedger.skuId !== skuId || existingLedger.change !== change
+          || existingLedger.reason !== adjustmentReason || existingLedger.operatorId !== admin._id || existingLedger.idempotencyKey !== idempotencyKey) {
+          fail('IDEMPOTENCY_CONFLICT', '这次库存调整与已提交的记录不一致，请刷新库存后再核对。');
+        }
         const existingInventory = await tx.getById('inventory', inventoryDocumentId);
         return { inventory: existingInventory, idempotent: true };
       }
@@ -274,7 +311,14 @@ function createAdminOperationsActions({ store, piiEncryptionKey, demoMode, clock
     const deliveryAreaId = string(payload.deliveryAreaId, '配送区域 ID', { required: true, max: 80 });
     const area = await store.findOne('delivery_areas', { _id: deliveryAreaId });
     if (!area) fail('DELIVERY_AREA_NOT_FOUND', '配送区域不存在。');
-    const patch = { name: string(payload.name, '运费规则名称', { required: true, max: 80 }), deliveryAreaId, warehouseId: string(payload.warehouseId, '仓库 ID', { max: 80 }), customerType: string(payload.customerType, '客户类型', { max: 30 }), baseFeeCent: cents(payload.baseFeeCent === undefined ? (payload.baseFee === undefined ? 0 : payload.baseFee) : payload.baseFeeCent, '基础配送费'), additionalFeeCent: cents(payload.additionalFeeCent === undefined ? (payload.additionalFee === undefined ? 0 : payload.additionalFee) : payload.additionalFeeCent, '附加配送费'), freeThresholdCent: cents(payload.freeThresholdCent === undefined ? (payload.freeThreshold === undefined ? 0 : payload.freeThreshold) : payload.freeThresholdCent, '免运门槛'), priority: integer(payload.priority, 0), validFrom: string(payload.validFrom, '生效开始时间', { max: 40 }), validTo: string(payload.validTo, '生效结束时间', { max: 40 }), status: ['draft', 'active', 'disabled'].includes(payload.status) ? payload.status : 'draft', ...demoMetadata(payload), updatedAt: timestamp };
+    const customerType = string(payload.customerType, '客户类型', { max: 30 });
+    if (!['', 'c', 'b'].includes(customerType)) fail('VALIDATION_ERROR', '运费适用顾客只支持个人、企业或两者。');
+    const priority = payload.priority === undefined ? 0 : Number(payload.priority);
+    if (!Number.isSafeInteger(priority)) fail('VALIDATION_ERROR', '运费匹配优先级必须是整数。');
+    const patch = { name: string(payload.name, '运费规则名称', { required: true, max: 80 }), deliveryAreaId, warehouseId: string(payload.warehouseId, '仓库 ID', { max: 80 }), customerType, baseFeeCent: cents(payload.baseFeeCent === undefined ? (payload.baseFee === undefined ? 0 : payload.baseFee) : payload.baseFeeCent, '基础配送费'), additionalFeeCent: cents(payload.additionalFeeCent === undefined ? (payload.additionalFee === undefined ? 0 : payload.additionalFee) : payload.additionalFeeCent, '附加配送费'), freeThresholdCent: cents(payload.freeThresholdCent === undefined ? (payload.freeThreshold === undefined ? 0 : payload.freeThreshold) : payload.freeThresholdCent, '免运门槛'), priority, validFrom: string(payload.validFrom, '生效开始时间', { max: 40 }), validTo: string(payload.validTo, '生效结束时间', { max: 40 }), status: ['draft', 'active', 'disabled'].includes(payload.status) ? payload.status : 'draft', ...demoMetadata(payload), updatedAt: timestamp };
+    if (patch.validFrom && Number.isNaN(new Date(patch.validFrom).getTime())) fail('VALIDATION_ERROR', '运费开始生效时间不合法。');
+    if (patch.validTo && Number.isNaN(new Date(patch.validTo).getTime())) fail('VALIDATION_ERROR', '运费结束生效时间不合法。');
+    if (patch.validFrom && patch.validTo && new Date(patch.validFrom).getTime() > new Date(patch.validTo).getTime()) fail('VALIDATION_ERROR', '运费结束生效时间不能早于开始时间。');
     let rule;
     if (payload.id) {
       const id = string(payload.id, '运费规则 ID', { max: 80 });
@@ -296,11 +340,19 @@ function createAdminOperationsActions({ store, piiEncryptionKey, demoMode, clock
     const endTime = string(payload.endTime, '结束时间', { required: true, max: 10 });
     if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime) || startTime >= endTime) fail('VALIDATION_ERROR', '配送时段格式或起止时间不合法。');
     const timestamp = nowIso(clock);
-    const patch = { name: string(payload.name, '配送时段名称', { required: true, max: 80 }), deliveryAreaId, warehouseId: string(payload.warehouseId, '仓库 ID', { max: 80 }), startTime, endTime, capacity: integer(payload.capacity, 0), validFrom: string(payload.validFrom, '生效开始时间', { max: 40 }), validTo: string(payload.validTo, '生效结束时间', { max: 40 }), status: ['draft', 'active', 'disabled'].includes(payload.status) ? payload.status : 'draft', sort: integer(payload.sort, 0), ...demoMetadata(payload), updatedAt: timestamp };
+    const id = payload.id ? string(payload.id, '配送时段 ID', { max: 80 }) : '';
+    const existing = id ? await store.findOne('delivery_slots', { _id: id }) : null;
+    if (id && !existing) fail('DELIVERY_SLOT_NOT_FOUND', '配送时段不存在。');
+    const capacity = payload.capacity === undefined ? Number(existing?.capacity || 0) : Number(payload.capacity);
+    const sort = payload.sort === undefined ? Number(existing?.sort || 0) : Number(payload.sort);
+    if (!Number.isSafeInteger(capacity) || capacity < 0) fail('VALIDATION_ERROR', '配送时段容量记录必须是非负整数。');
+    if (!Number.isSafeInteger(sort)) fail('VALIDATION_ERROR', '显示顺序必须是整数。');
+    const patch = { name: string(payload.name, '配送时段名称', { required: true, max: 80 }), deliveryAreaId, warehouseId: string(payload.warehouseId, '仓库 ID', { max: 80 }), startTime, endTime, capacity, validFrom: string(payload.validFrom === undefined ? existing?.validFrom : payload.validFrom, '生效开始时间', { max: 40 }), validTo: string(payload.validTo === undefined ? existing?.validTo : payload.validTo, '生效结束时间', { max: 40 }), status: ['draft', 'active', 'disabled'].includes(payload.status) ? payload.status : 'draft', sort, ...demoMetadata(payload), updatedAt: timestamp };
+    if (patch.validFrom && Number.isNaN(new Date(patch.validFrom).getTime())) fail('VALIDATION_ERROR', '配送时段开始生效时间不合法。');
+    if (patch.validTo && Number.isNaN(new Date(patch.validTo).getTime())) fail('VALIDATION_ERROR', '配送时段结束生效时间不合法。');
+    if (patch.validFrom && patch.validTo && new Date(patch.validFrom).getTime() > new Date(patch.validTo).getTime()) fail('VALIDATION_ERROR', '配送时段结束生效时间不能早于开始时间。');
     let slot;
-    if (payload.id) {
-      const id = string(payload.id, '配送时段 ID', { max: 80 }); const existing = await store.findOne('delivery_slots', { _id: id });
-      if (!existing) fail('DELIVERY_SLOT_NOT_FOUND', '配送时段不存在。');
+    if (id) {
       await store.update('delivery_slots', id, patch); slot = { ...existing, ...patch, _id: id };
     } else slot = await store.create('delivery_slots', { ...patch, createdAt: timestamp });
     await audit(admin, 'delivery.slot.upsert', 'delivery_slot', slot._id, { deliveryAreaId, warehouseId: slot.warehouseId, status: slot.status });
@@ -368,6 +420,6 @@ function createAdminOperationsActions({ store, piiEncryptionKey, demoMode, clock
     return result;
   }
 
-  return { adminUpsertPrice, adminSeedDemoCommerce, adminUpsertGroupCampaign, adminUsers, adminSetUserPricingProfile, adminReviewBusinessApplication, adminBusinessApplications, adminUpsertWarehouse, adminAdjustInventory, adminUpsertDeliveryArea, adminUpsertFreightRule, adminUpsertDeliverySlot, adminTransitionOrder, adminOrderFulfillmentContact, adminExpireReservations, adminExpireGroups };
+  return { adminUpsertPrice, adminSeedDemoCommerce, adminUpsertGroupCampaign, adminUsers, adminSetUserPricingProfile, adminReviewBusinessApplication, adminBusinessApplications, adminBusinessApplicationReviewDetail, adminUpsertWarehouse, adminAdjustInventory, adminUpsertDeliveryArea, adminUpsertFreightRule, adminUpsertDeliverySlot, adminTransitionOrder, adminOrderFulfillmentContact, adminExpireReservations, adminExpireGroups };
 }
 module.exports = { createAdminOperationsActions };

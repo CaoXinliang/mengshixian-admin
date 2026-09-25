@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="admin-shell.css">
   <link rel="stylesheet" href="admin-page-summary.css">
+  <link rel="stylesheet" href="admin-business-review.css">
 </head>
 <body>
   <main class="admin-shell" id="adminShell">
@@ -21,6 +22,17 @@
       <div class="hidden-forms"></div>
     </section>
   </main>
+  <dialog id="businessReviewDialog" class="business-review-dialog" aria-labelledby="businessReviewTitle">
+    <div class="business-review-head"><h2 id="businessReviewTitle">核对企业申请</h2><button type="button" id="businessReviewClose" aria-label="关闭核对">×</button></div>
+    <p id="businessReviewStatus" role="status" aria-live="polite">正在读取申请资料…</p>
+    <dl id="businessReviewFields" class="business-review-fields"></dl>
+    <div class="business-review-evidence">
+      <section><h3>门头照片</h3><img id="businessStorefrontImage" alt="申请人上传的门头照片"><p id="businessStorefrontStatus">等待预览</p></section>
+      <section><h3>营业执照</h3><img id="businessLicenseImage" alt="申请人上传的营业执照"><p id="businessLicenseStatus">等待预览</p></section>
+    </div>
+    <label class="business-review-confirm"><input id="businessReviewConfirmed" type="checkbox">我已对照申请资料，核对两张图片的实际内容</label>
+    <div class="business-review-actions"><button type="button" data-business-decision="rejected" disabled>驳回申请</button><button type="button" class="primary" data-business-decision="approved" disabled>确认通过</button></div>
+  </dialog>
   <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true">
       <div class="modal-header"><h3 id="modalTitle">表单</h3><button type="button" class="modal-close" id="modalClose" aria-label="关闭">×</button></div>
@@ -46,6 +58,7 @@
   <script src="admin-tables.js"></script>
   <script src="admin-page-summary.js"></script>
   <script src="admin-operations-confirm.js"></script>
+  <script src="admin-business-review.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

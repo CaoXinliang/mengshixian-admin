@@ -16,14 +16,42 @@
     <section class="workspace">
       <header class="workspace-head" id="adminHeader"></header>
       <p class="notice" id="globalMessage" aria-live="polite"></p>
-      <section class="panel is-active" data-panel="imports">
-        <div class="section-head"><div><h3>导入商品资料</h3><p>先建立编码对应关系，再补齐资料、核对发布。名称给人看，商品编码与规格编码用于关联；不使用文件名或名称识别商品。</p></div></div>
-        <div class="import-steps"><span>1 填商品资料；编码可留空</span><span>2 选择 Excel 或 CSV 表格</span><span>3 逐行核对编码和关联</span><span>4 仅保存待补齐草稿</span><span>5 到商品核对页确认发布</span></div>
-        <div class="import-actions"><button type="button" id="downloadImportTemplate">下载 Excel 空白模板</button><a href="outputs/01a0cd53-41af-7eb2-824f-c1e8b42fa25d/商品导入测试演示_仅本地.xlsx" download>下载测试演示表</a><label class="upload-label">选择已填好的表格<input type="file" id="stagingFile" accept=".xlsx,.csv"></label><small>支持 .xlsx、.csv。编码中的前导零请在 Excel 中按文本保存；测试演示表含 TEST 编码，仅用于本地验证，不要导入友方云。</small><a href="product-review.html">去商品核对页 →</a></div>
+      <section class="panel is-active import-page" data-panel="imports">
+        <div class="section-head import-heading">
+          <div><span class="import-eyebrow">商品资料 · 第一步</span><h3>先导入，后核对</h3><p>用表格建立商品和销售规格，后台逐行检查。确认后只保存草稿，不会直接改变顾客端。</p></div>
+          <span class="import-safe-note">仅保存草稿 · 不自动上架</span>
+        </div>
+        <div class="import-steps" role="list" aria-label="商品导入流程">
+          <span role="listitem"><b>01</b>下载模板并填写</span><span role="listitem"><b>02</b>选择已填表格</span><span role="listitem"><b>03</b>核对每行结果</span><span role="listitem"><b>04</b>确认保存草稿</span>
+        </div>
+        <div class="import-actions">
+          <section class="import-upload-card" aria-labelledby="importUploadTitle">
+            <div class="import-upload-mark" aria-hidden="true">↑</div>
+            <h4 id="importUploadTitle">选择已填好的商品表格</h4>
+            <p>选定文件后先预览错误与重复项；核对前不会保存。</p>
+            <label class="upload-label">选择 Excel / CSV 表格<input type="file" id="stagingFile" accept=".xlsx,.csv"></label>
+            <small>支持 .xlsx、.csv；商品编码和规格编码可留空，由后台辅助生成。</small>
+          </section>
+          <aside class="import-template-card" aria-label="填表帮助">
+            <span class="import-card-kicker">还没有表格？</span>
+            <h4>先从空白模板开始</h4>
+            <p>每行填写一个销售规格。商品名称用于阅读，编码用于稳定关联；不要用文件名或名称作唯一匹配。</p>
+            <button type="button" id="downloadImportTemplate">下载 Excel 空白模板</button>
+            <a href="outputs/01a0cd53-41af-7eb2-824f-c1e8b42fa25d/商品导入测试演示_仅本地.xlsx" download>下载本机测试演示表</a>
+            <small>编码中的前导零请在 Excel 中按文本保存。演示表含 TEST 编码，仅供本机练习，不要导入友方云。</small>
+          </aside>
+        </div>
         <div class="import-preview" id="importMapping" hidden></div>
-        <div class="import-preview" id="importPreview" hidden><h4>导入前逐行核对</h4><p id="importPreviewSummary"></p><div class="table-wrap"><table><thead><tr><th>表格行</th><th>商品编码</th><th>规格编码</th><th>商品名称</th><th>分类</th><th>规格</th><th>包装单位</th><th>检查结果</th></tr></thead><tbody id="importPreviewRows"></tbody></table></div><button type="button" class="primary-action" id="saveImportDrafts" disabled>确认仅保存草稿</button></div>
-        <h3>已保存的待审核草稿</h3>
-        <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>来源行</th><th>商品</th><th>分类</th><th>规格</th><th>状态</th><th class="col-action">操作</th></tr></thead><tbody id="importsTable"></tbody></table></div>
+        <section class="import-preview" id="importPreview" aria-labelledby="importPreviewTitle" hidden>
+          <div class="import-section-head"><div><span class="import-card-kicker">上传后 · 逐行检查</span><h4 id="importPreviewTitle">导入前核对</h4></div><span class="import-section-hint">有错误请修改表格后重新选择</span></div>
+          <p id="importPreviewSummary"></p>
+          <div class="table-wrap"><table><thead><tr><th>表格行</th><th>商品编码</th><th>规格编码</th><th>商品名称</th><th>分类</th><th>规格</th><th>包装单位</th><th>检查结果</th></tr></thead><tbody id="importPreviewRows"></tbody></table></div>
+          <div class="import-preview-footer"><p>保存后仍需补齐价格、图片和库存，再到核对页明确确认发布。</p><button type="button" class="primary-action" id="saveImportDrafts" disabled>确认仅保存草稿</button></div>
+        </section>
+        <section class="import-saved" aria-labelledby="importSavedTitle">
+          <div class="import-section-head"><div><span class="import-card-kicker">下一步 · 补齐资料</span><h3 id="importSavedTitle">已保存的待审核草稿</h3><p>在这里生成商品草稿，再进入商品编辑与上架前核对。</p></div><a href="product-review.html">去商品核对页 →</a></div>
+          <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>来源行</th><th>商品</th><th>分类</th><th>规格</th><th>状态</th><th class="col-action">操作</th></tr></thead><tbody id="importsTable"></tbody></table></div>
+        </section>
       </section>
       <div class="hidden-forms"></div>
     </section>

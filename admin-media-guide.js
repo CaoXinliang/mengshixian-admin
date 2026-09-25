@@ -24,11 +24,17 @@
       const file = fields.get('uploadFile');
       const type = fields.get('type');
       const replacing = fields.get('replacesMediaAssetId');
+      let uploadStarted = false;
+      let fileUploaded = false;
       try {
         if (!file || !file.size) throw new Error('请先从电脑选择图片或视频。');
         const allowed = type === 'image' ? ['image/jpeg', 'image/png', 'image/webp'] : ['video/mp4', 'video/webm', 'video/quicktime'];
         if (!allowed.includes(file.type)) throw new Error('选择的文件与素材类型不一致或格式不支持，请改选正确类型。');
-        if (file.size > 24 * 1024 * 1024) throw new Error('文件超过 24 MB；请压缩后再选择。');
+        if (type === 'image' && file.size > 24 * 1024 * 1024) throw new Error('图片超过 24 MB，请压缩后再选择。');
+        if (type === 'video' && file.size > 24 * 1024 * 1024 && !api.config.largeVideoUploadEnabled) {
+          throw new Error('当前环境的大视频直传尚未启用；请先压缩到 24 MB 内。');
+        }
+        if (type === 'video' && file.size > 100 * 1024 * 1024) throw new Error('视频超过 100 MB，请压缩后再选择。');
         submit.disabled = true;
         progress.hidden = false; progress.value = 0;
         status.textContent = '正在检查文件是否已上传…';
@@ -41,14 +47,17 @@
         }
         if (replacing && assets().some((item) => item._id === replacing && item.checksum === checksum)) throw new Error('新版本与旧版本内容相同，请选择修改后的文件。');
         const cacheKey = `${type}:${checksum}`;
+        uploadStarted = true;
         const uploaded = uploadedFiles.get(cacheKey) || await api.uploadMediaFile(file, type, (update) => {
           progress.value = update.percent;
           status.textContent = update.phase === 'checking' ? '正在核对文件内容…'
             : update.phase === 'finishing' ? '已上传全部分段，正在合并与校验…'
+              : update.phase === 'verifying' ? '视频已传到云端，后台正在核对文件…'
               : update.phase === 'complete' ? '文件上传完成，正在登记素材…'
                 : `${update.resumed ? '继续上传' : '上传中'}：${update.percent}%`;
         });
         uploadedFiles.set(cacheKey, uploaded);
+        fileUploaded = true;
         status.textContent = '文件已上传，正在登记素材；登记失败后可在当前页面直接重试。';
         const payload = { name: fields.get('name'), type, source: fields.get('source'), temporary: fields.get('temporary') === 'on',
           targetPlatforms: fields.getAll('targetPlatforms'), startAt: fields.get('startAt'), endAt: fields.get('endAt'),
@@ -64,7 +73,11 @@
         status.textContent = replacing ? '新版本已登记，旧素材文件与记录保留。' : '文件已上传并登记到素材库；还需按商品编码关联后才能展示。';
         message(status.textContent);
       } catch (error) {
-        status.textContent = `${error.message || '上传失败。'}重新选择同一文件后可重试；大视频会继续未完成的分段。`;
+        const retry = fileUploaded ? '文件已上传，重新提交会复用已上传文件，不会重复上传。'
+          : uploadStarted && file.size > 24 * 1024 * 1024
+            ? '重新选择同一文件可重试；后台会先检查云端是否已收齐，否则从头上传。'
+            : uploadStarted ? '重新选择同一文件后可重试；若上传任务仍有效，分段会继续未完成部分。' : '';
+        status.textContent = `${error.message || '上传失败。'}${retry}`;
         message(status.textContent, true);
       } finally { submit.disabled = false; }
     });
@@ -86,7 +99,12 @@
         const url = result.fileList && result.fileList[0] && result.fileList[0].tempFileURL;
         if (request !== previewRequest) return;
         if (!url) throw new Error('当前文件没有可用的预览地址。');
-        content.innerHTML = `<h3>${esc(asset.name)}</h3>${asset.type === 'video' ? `<video controls preload="metadata" src="${esc(url)}" style="max-width:min(80vw,700px);max-height:65vh"></video>` : `<img src="${esc(url)}" alt="${esc(asset.name)}" style="max-width:min(80vw,700px);max-height:65vh;object-fit:contain">`}`;
+        const source = ({ client: '甲方提供', ai_generated: 'AI 生成', demo: '演示素材', admin_upload: '后台上传' })[asset.source] || '来源未登记，请核对';
+        const platforms = Array.isArray(asset.targetPlatforms) && asset.targetPlatforms.length
+          ? asset.targetPlatforms.map((item) => ({ miniapp: '小程序', web: '网页端' })[item] || '适用端待核对').join('、')
+          : '适用端未登记，请核对';
+        const version = Number.isSafeInteger(Number(asset.version)) && Number(asset.version) > 0 ? asset.version : '未登记';
+        content.innerHTML = `<h3>${esc(asset.name)}</h3><div class="media-preview-meta"><span>类型：${asset.type === 'video' ? '视频' : '图片'}</span><span>来源：${esc(source)}</span><span>版本：${esc(version)}</span><span>适用端：${esc(platforms)}</span></div>${asset.type === 'video' ? `<video controls preload="metadata" src="${esc(url)}" style="max-width:min(80vw,700px);max-height:65vh"></video>` : `<img src="${esc(url)}" alt="${esc(asset.name)}" style="max-width:min(80vw,700px);max-height:65vh;object-fit:contain">`}`;
         content.querySelector('img,video').addEventListener('error', () => { if (request === previewRequest) content.textContent = '文件加载失败，尚未完成预览。请关闭后重新点“预览”；仍失败时请检查或重新上传素材。'; }, { once: true });
       } catch (error) { if (request === previewRequest) content.textContent = error.message || '预览失败，请稍后重试。'; }
     });

@@ -5,6 +5,7 @@ const { audienceVisible, buildQuote, createOrder, expireReservations, expireGrou
 const { active: activeGroupCampaign, createGroup } = require('./lib/groups');
 const { collectPageMatches } = require('./lib/collection-read');
 const { createAdminMediaChunks } = require('./lib/admin-media-chunks');
+const { createAdminMediaDirect } = require('./lib/admin-media-direct');
 const { createCatalogImport } = require('./lib/catalog-import');
 const { createCatalogReview } = require('./lib/catalog-review');
 const { createOfflineReceipts } = require('./lib/offline-receipts');
@@ -15,10 +16,11 @@ const { SESSION_TTL_MS, LOGIN_WINDOW_MS, LOGIN_MAX_FAILURES, nowIso, string, int
 const { createAdminCatalogActions } = require('./lib/admin-catalog-actions');
 const { createCustomerOrderActions } = require('./lib/customer-order-actions');
 const { createAdminOperationsActions } = require('./lib/admin-operations-actions');
+const { enrichAuditRows } = require('./lib/admin-audit-feed');
 
-function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '', piiEncryptionKey = '', paymentPreparer = null, paymentVerifier = null, refundVerifier = null, mediaUrlResolver = null, storageUploader = null, storageDownloader = null, storageDeleter = null, demoMode = false, clock = () => new Date(), getPhoneByCode = null }) {
-  async function audit(admin, action, targetType, targetId, details = {}) {
-    return store.create('audit_logs', {
+function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '', piiEncryptionKey = '', paymentPreparer = null, paymentVerifier = null, refundVerifier = null, mediaUrlResolver = null, storageUploader = null, storageDownloader = null, storageDeleter = null, storageTicketIssuer = null, storageVerifier = null, demoMode = false, clock = () => new Date(), getPhoneByCode = null }) {
+  async function audit(admin, action, targetType, targetId, details = {}, transaction = null) {
+    const record = {
       actorType: admin ? 'admin' : 'system',
       actorId: admin ? admin._id : '',
       action,
@@ -26,7 +28,8 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
       targetId: targetId || '',
       details,
       createdAt: nowIso(clock)
-    });
+    };
+    return transaction ? transaction.set('audit_logs', randomId('audit'), record) : store.create('audit_logs', record);
   }
 
   async function getAdmin(payload, permission) {
@@ -43,6 +46,7 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
   }
 
   const mediaChunks = createAdminMediaChunks({ store, getAdmin, audit, clock, storageUploader, storageDownloader, storageDeleter });
+  const mediaDirect = createAdminMediaDirect({ store, getAdmin, audit, clock, storageTicketIssuer, storageVerifier, storageDeleter });
   const catalogImport = createCatalogImport({ store, clock, audit });
   const catalogReview = createCatalogReview({ store, clock, audit });
   const offlineReceipts = createOfflineReceipts({ store, getAdmin, clock });
@@ -408,8 +412,15 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     return store.list(collection, { orderBy: options.orderBy || [{ field: 'updatedAt', direction: 'desc' }], ...pageParams(payload) });
   }
 
+  async function adminAuditList(payload) {
+    await getAdmin(payload, 'audit.read');
+    const listed = await store.list('audit_logs', { orderBy: [{ field: 'createdAt', direction: 'desc' }], ...pageParams(payload) });
+    return { ...listed, rows: await enrichAuditRows(store, listed.rows) };
+  }
+
   async function adminReadiness(payload) {
-    await getAdmin(payload, 'admin.read');
+    const { permissions } = await getAdmin(payload);
+    if (!['admin.read', 'catalog.read', 'delivery.read'].some((permission) => hasPermission(permissions, permission))) fail('ADMIN_FORBIDDEN', '当前账号无权查看开店检查。');
     const count = async (collection, where = {}) => (await store.list(collection, { where, page: 1, pageSize: 1 })).total;
     const [productsOnSale, skusOnSale, activePriceRules, activeWarehouses, inventoryRecords, activeDeliveryAreas, activeFreightRules, activeDeliverySlots, activeGroupCampaigns, enabledMediaAssets] = await Promise.all([
       count('products', { status: 'on_sale' }), count('product_skus', { status: 'on_sale' }), count('prices', { status: 'active' }), count('warehouses', { status: 'active' }), count('inventory'), count('delivery_areas', { status: 'active' }), count('freight_rules', { status: 'active' }), count('delivery_slots', { status: 'active' }), count('group_campaigns', { status: 'active' }), count('media_assets', { enabled: true })
@@ -423,11 +434,11 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     return { counts: { productsOnSale, skusOnSale, activePriceRules, activeWarehouses, inventoryRecords, activeDeliveryAreas, activeFreightRules, activeDeliverySlots, activeGroupCampaigns, enabledMediaAssets }, catalogReady: productsOnSale > 0 && skusOnSale > 0, quoteAndOrderDataReady: false, groupDataReady: activeGroupCampaigns > 0, blockers, manualLinkVerificationRequired: true };
   }
 
-  const { validateMediaReference, adminUpsertCategory, adminUpsertProduct, adminUpsertSku, adminSetProductStatus, adminSetSkuStatus, adminUpsertContent, adminUpsertMedia, adminCreateMediaVersion, adminListProductMedia, adminUpsertProductMedia, adminUploadMedia, stageImport, approveImport, activateImportBatch, previewImport, linkMediaByCode } = createAdminCatalogActions({ store, storageUploader, clock, audit, getAdmin, catalogImport, catalogReview });
+  const { validateMediaReference, adminUpsertCategory, adminUpsertProduct, adminUpsertSku, adminSetProductStatus, adminSetSkuStatus, adminUpsertContent, adminUpsertMedia, adminUpdateMediaMetadata, adminCreateMediaVersion, adminListProductMedia, adminUpsertProductMedia, adminUploadMedia, stageImport, approveImport, activateImportBatch, previewImport, linkMediaByCode } = createAdminCatalogActions({ store, storageUploader, clock, audit, getAdmin, catalogImport, catalogReview });
 
-  const { userAddresses, userUpsertAddress, userDeleteAddress, userCart, userUpsertCartItem, userRemoveCartItem, checkoutQuote, userCreateOrder, userOrders, userOrder, userCancelOrder, userCompleteOrder, wechatPaymentNotify, userPreparePayment, userRequestRefund, adminReviewRefund, refundNotify } = createCustomerOrderActions({ store, piiEncryptionKey, paymentPreparer, paymentVerifier, refundVerifier, demoMode, clock, audit, getAdmin, ensureWechatUser });
+  const { userAddresses, userUpsertAddress, userDeleteAddress, userCart, userUpsertCartItem, userRemoveCartItem, checkoutQuote, userCreateOrder, userOrders, userOrder, userCancelOrder, userCompleteOrder, wechatPaymentNotify, userPreparePayment, userRequestRefund, adminReviewRefund, adminRefundReviewDetail, refundNotify } = createCustomerOrderActions({ store, piiEncryptionKey, paymentPreparer, paymentVerifier, refundVerifier, demoMode, clock, audit, getAdmin, ensureWechatUser });
 
-  const { adminUpsertPrice, adminSeedDemoCommerce, adminUpsertGroupCampaign, adminUsers, adminSetUserPricingProfile, adminReviewBusinessApplication, adminBusinessApplications, adminUpsertWarehouse, adminAdjustInventory, adminUpsertDeliveryArea, adminUpsertFreightRule, adminUpsertDeliverySlot, adminTransitionOrder, adminOrderFulfillmentContact, adminExpireReservations, adminExpireGroups } = createAdminOperationsActions({ store, piiEncryptionKey, demoMode, clock, audit, getAdmin, validateMediaReference, pricingTargets });
+  const { adminUpsertPrice, adminSeedDemoCommerce, adminUpsertGroupCampaign, adminUsers, adminSetUserPricingProfile, adminReviewBusinessApplication, adminBusinessApplications, adminBusinessApplicationReviewDetail, adminUpsertWarehouse, adminAdjustInventory, adminUpsertDeliveryArea, adminUpsertFreightRule, adminUpsertDeliverySlot, adminTransitionOrder, adminOrderFulfillmentContact, adminExpireReservations, adminExpireGroups } = createAdminOperationsActions({ store, piiEncryptionKey, demoMode, clock, audit, getAdmin, validateMediaReference, pricingTargets, mediaUrlResolver });
 
   async function runMaintenance(payload = {}) {
     const limit = integer(payload.limit, 50);
@@ -520,6 +531,7 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     'admin.users.organizations': async (payload) => { await getAdmin(payload, 'users.read'); return pricingTargets.list({ ...payload, scopeType: 'organization' }); },
     'admin.users.setPricingProfile': adminSetUserPricingProfile,
     'admin.businessApplications.list': adminBusinessApplications,
+    'admin.businessApplications.reviewDetail': adminBusinessApplicationReviewDetail,
     'admin.businessApplications.review': adminReviewBusinessApplication,
     'admin.warehouses.list': (payload) => adminList('warehouses', payload, 'inventory.read', { orderBy: [{ field: 'sort', direction: 'asc' }] }),
     'admin.warehouses.upsert': adminUpsertWarehouse,
@@ -539,6 +551,7 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     'admin.orders.fulfillmentContact': adminOrderFulfillmentContact,
     'admin.orders.transition': adminTransitionOrder,
     'admin.refunds.list': (payload) => adminList('refunds', payload, 'refunds.read'),
+    'admin.refunds.reviewDetail': adminRefundReviewDetail,
     'admin.refunds.review': adminReviewRefund,
     'admin.jobs.expireReservations': adminExpireReservations,
     'admin.jobs.expireGroups': adminExpireGroups,
@@ -552,7 +565,10 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     'admin.media.beginUpload': mediaChunks.begin,
     'admin.media.uploadPart': mediaChunks.uploadPart,
     'admin.media.finishUpload': mediaChunks.finish,
+    'admin.media.beginDirectUpload': mediaDirect.begin,
+    'admin.media.finishDirectUpload': mediaDirect.finish,
     'admin.media.upsert': adminUpsertMedia,
+    'admin.media.updateMetadata': adminUpdateMediaMetadata,
     'admin.media.createVersion': adminCreateMediaVersion,
     'admin.productMedia.list': adminListProductMedia,
     'admin.productMedia.upsert': adminUpsertProductMedia,
@@ -561,7 +577,7 @@ function createApplication({ store, getIdentity = () => ({}), bootstrapToken = '
     'admin.banners.upsert': (payload) => adminUpsertContent(payload, 'banners', 'content.write', '轮播图'),
     'admin.homeSections.list': (payload) => adminList('home_sections', payload, 'content.read', { orderBy: [{ field: 'sort', direction: 'asc' }] }),
     'admin.homeSections.upsert': (payload) => adminUpsertContent(payload, 'home_sections', 'content.write', '首页模块'),
-    'admin.audit.list': (payload) => adminList('audit_logs', payload, 'audit.read')
+    'admin.audit.list': adminAuditList
   };
 
   async function dispatch(event = {}) {

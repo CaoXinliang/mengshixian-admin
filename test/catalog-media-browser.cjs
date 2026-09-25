@@ -51,6 +51,30 @@ module.exports = async function catalogMediaBrowser({ fixture, send, evaluate, p
     return new File([blob], '仅本地演示主图.png', { type: 'image/png' });
   }`);
 
+  await waitFor(`Boolean(document.querySelector('[data-edit-media-metadata="${image._id}"]'))`);
+  await evaluate(`(() => {
+    document.querySelector('[data-edit-media-metadata="${image._id}"]').click();
+    const form = document.querySelector('#mediaMetadataForm');
+    if (form.elements.uploadFile || form.elements.fileId) throw new Error('改资料表单不应要求文件或云 ID');
+    form.elements.name.value = '${imageName}（已核对）';
+    window.confirm = () => true;
+    form.requestSubmit();
+  })()`);
+  await waitFor("document.querySelector('#globalMessage')?.textContent.includes('素材资料已保存')");
+  const editedImage = (await fixture.call('admin.media.list', { pageSize: 100 })).rows.find((row) => row._id === image._id);
+  assert.equal(editedImage.name, `${imageName}（已核对）`);
+  assert.equal(editedImage.fileId, image.fileId, '只改资料须沿用原文件');
+  assert.equal(editedImage.version, image.version, '只改资料须保留原版本');
+  assert.equal(editedImage.checksum, image.checksum, '只改资料须保留文件校验值');
+  const mediaAudits = (await fixture.call('admin.audit.list', { pageSize: 100 })).rows;
+  assert.ok(mediaAudits.some((row) => row.action === 'media.metadata.update' && row.targetId === image._id), '改资料后须能在操作记录中追溯');
+  await evaluate(`document.querySelector('[data-edit-media-metadata="${image._id}"]').click()`);
+  await fixture.call('admin.media.updateMetadata', { id: image._id, metadataRevision: editedImage.metadataRevision, name: `${imageName}（同事已更新）` });
+  await evaluate(`(() => { const form = document.querySelector('#mediaMetadataForm'); form.elements.name.value = '${imageName}（旧页面）'; window.confirm = () => true; form.requestSubmit(); })()`);
+  await waitFor("document.querySelector('#mediaMetadataError')?.textContent.includes('已被其他人修改')");
+  assert.equal(await evaluate("document.querySelector('#mediaMetadataError').getClientRects().length > 0"), true, '过期资料提示须在当前弹窗内可见');
+  assert.equal((await fixture.call('admin.media.list', { pageSize: 100 })).rows.find((row) => row._id === image._id).name, `${imageName}（同事已更新）`, '旧页面不得覆盖新资料');
+
   const video = await upload(videoName, 'video', `async () => {
     const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64;
     const context = canvas.getContext('2d');

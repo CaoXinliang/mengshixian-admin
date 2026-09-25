@@ -1,9 +1,17 @@
 const { fail } = require('./response');
-const { randomId } = require('./security');
+const { randomId, sha256 } = require('./security');
 const { refundId, inventoryId, inventoryLedgerId } = require('./transaction-ids');
 const { removePaidMember } = require('./groups');
 
 const REFUNDABLE_ORDER_STATUSES = ['pending_confirmation', 'picking', 'shipping', 'delivered', 'completed'];
+
+function refundReviewToken(refund, order) {
+  return sha256(JSON.stringify({
+    refund: ['_id', 'status', 'orderId', 'amountCent', 'reason', 'paymentId', 'updatedAt'].map((key) => refund[key] ?? null),
+    order: ['_id', 'orderNo', 'status', 'paymentStatus', 'totalAmountCent', 'refundedAmountCent', 'activeRefundId', 'updatedAt'].map((key) => order[key] ?? null),
+    items: (order.itemsSnapshot || []).map((item) => ['productNameSnapshot', 'specSnapshot', 'packageUnitSnapshot', 'quantity', 'unitPriceCent', 'subtotalCent'].map((key) => item[key] ?? null))
+  }));
+}
 
 async function requestRefund({ store, user, payload, now }) {
   const orderId = String(payload.orderId || '').trim();
@@ -33,22 +41,30 @@ async function requestRefund({ store, user, payload, now }) {
   });
 }
 
-async function reviewRefund({ store, admin, payload, now }) {
+async function reviewRefund({ store, admin, payload, now, audit }) {
   if (typeof store.runTransaction !== 'function') fail('TRANSACTION_NOT_AVAILABLE', '当前环境不支持退款事务。');
   const id = String(payload.id || '').trim();
   const decision = String(payload.decision || '').trim();
   if (!id || !['approved', 'rejected'].includes(decision)) fail('VALIDATION_ERROR', '退款审核参数不合法。');
+  const reviewToken = String(payload.reviewToken || '').trim();
+  if (!reviewToken || reviewToken.length > 128) fail('REFUND_REVIEW_REQUIRED', '请先打开退款核对页，核对原订单和申请资料。');
   // 审核必须在事务内二次校验状态：并发审批同一退款单时以后提交者的事务结果为准，不得互相覆盖
   return store.runTransaction(async (tx) => {
     const refund = await tx.getById('refunds', id);
     if (!refund || refund.status !== 'requested') fail('REFUND_NOT_FOUND', '退款申请不存在或已处理。');
+    const order = await tx.getById('orders', refund.orderId);
+    if (!order || order.paymentStatus !== 'paid' || order.activeRefundId !== id) fail('REFUND_ORDER_CHANGED', '原订单已变化，当前不能审核，请重新核对。');
+    if (reviewToken !== refundReviewToken(refund, order)) fail('REFUND_REVIEW_CHANGED', '退款申请或原订单已变化，请重新打开核对页。');
+    const availableRefundCent = Number(order.totalAmountCent || 0) - Number(order.refundedAmountCent || 0);
+    if (!Number.isInteger(availableRefundCent) || Number(refund.amountCent) < 1 || Number(refund.amountCent) > availableRefundCent) fail('REFUND_AMOUNT_INVALID', '申请金额超过当前剩余可退金额，不能审核。');
+    if (order.status === 'pending_confirmation' && Number(refund.amountCent) !== availableRefundCent) fail('REFUND_AMOUNT_INVALID', '未出库订单只能审核剩余全额退款。');
     const timestamp = now.toISOString();
     const patch = { status: decision === 'approved' ? 'processing' : 'rejected', reviewedBy: admin._id, reviewedAt: timestamp, reviewNote: String(payload.reviewNote || '').slice(0, 300), updatedAt: timestamp };
     await tx.update('refunds', id, patch);
     if (decision === 'rejected') {
-      const order = await tx.getById('orders', refund.orderId);
-      if (order && order.activeRefundId === id) await tx.update('orders', order._id, { activeRefundId: '', updatedAt: timestamp });
+      await tx.update('orders', order._id, { activeRefundId: '', updatedAt: timestamp });
     }
+    await audit(admin, 'refunds.review', 'refund', id, { status: patch.status, decision }, tx);
     return { refund: { ...refund, ...patch } };
   });
 }
@@ -86,4 +102,4 @@ async function confirmRefund({ store, refund, refundTransactionId, refundedAmoun
   });
 }
 
-module.exports = { requestRefund, reviewRefund, confirmRefund };
+module.exports = { requestRefund, reviewRefund, refundReviewToken, confirmRefund };

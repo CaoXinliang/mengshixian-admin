@@ -50,7 +50,7 @@ const workbook = zip({
 const edge = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const port = 9341;
 const profile = process.env.IMPORT_BROWSER_PROFILE || path.join(os.tmpdir(), `friend-import-test-${process.pid}`);
-const browser = spawn(edge, ['--headless=new', '--disable-gpu', '--no-first-run', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
+const browser = spawn(edge, ['--headless', '--enable-unsafe-swiftshader', '--no-first-run', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
 let browserError = '';
 browser.stderr.on('data', (chunk) => { browserError += chunk.toString().slice(0, 3000); });
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -111,10 +111,37 @@ async function main() {
             if (window.__failRegistration) { window.__failRegistration = false; throw new Error('本地模拟登记失败'); }
             const asset = { ...payload, _id: 'asset-' + window.__media.length, enabled: true }; window.__media.push(asset); window.__writes.push({ action, ...payload }); return asset;
           }
+          if (action === 'admin.media.updateMetadata') { window.__writes.push({ action, ...payload }); return { _id: payload.id, ...payload }; }
+          if (action === 'admin.businessApplications.review') {
+            if (location.search.includes('staleBusiness=1')) { window.__businessUpdated = true; const error = new Error('企业申请资料已变化，请刷新后重新核对。'); error.code = 'BUSINESS_APPLICATION_CHANGED'; throw error; }
+            window.__writes.push({ action, ...payload }); return { id: payload.id, status: payload.decision };
+          }
+          if (action === 'admin.businessApplications.reviewDetail') return {
+            _id: payload.id, companyName: '本地申请企业', storeName: '本地门店', storeAddress: '本地测试路',
+            mainBusinessType: 'restaurant', unifiedCode: '123456789012345678', contactName: '申请人',
+            contactPhoneMasked: '139****9000', status: 'pending', reviewToken: 'current-review-token',
+            storefrontPreviewUrl: '/assets/logo.png',
+            licensePreviewUrl: location.search.includes('missingBusinessPreview=1') ? '/missing-business-document.png' : '/assets/logo.png'
+          };
+          if (action === 'admin.refunds.reviewDetail') return {
+            refund: { _id: payload.id, refundNo: 'R-LOCAL-01', orderId: 'order-private-refund', amountCent: 3000, reason: '包装破损', status: 'requested' },
+            order: { orderNo: 'O-LOCAL-01', status: 'delivered', paymentStatus: 'paid', totalAmountCent: 10000, refundedAmountCent: location.search.includes('overRefund=1') ? 8000 : 0, availableRefundCent: location.search.includes('overRefund=1') ? 2000 : 10000,
+              items: [{ productNameSnapshot: '本地鱼丸', specSnapshot: '500克/袋', packageUnitSnapshot: '袋', quantity: 2, unitPriceCent: 4000, subtotalCent: 8000 }] },
+            reviewToken: 'refund-review-token'
+          };
+          if (action === 'admin.refunds.review') {
+            if (location.search.includes('staleRefund=1')) { const error = new Error('退款申请或原订单已变化，请重新打开核对页。'); error.code = 'REFUND_REVIEW_CHANGED'; throw error; }
+            window.__writes.push({ action, ...payload }); return { refund: { status: payload.decision === 'approved' ? 'processing' : 'rejected' } };
+          }
+          if (action === 'admin.media.list' && location.search.includes('failProductMedia=1')) throw new Error('本地模拟素材列表读取失败');
+          if (action === 'admin.readiness') {
+            if (location.search.includes('failOpening=1')) throw new Error('本地模拟检查读取失败');
+            return { counts: { productsOnSale: 1, skusOnSale: 1, activePriceRules: 1, activeWarehouses: 1, inventoryRecords: 0, activeDeliveryAreas: 0, activeFreightRules: 1, activeDeliverySlots: 0, enabledMediaAssets: 1 }, quoteAndOrderDataReady: false };
+          }
           if (action === 'admin.pricingTargets.list') return { rows: payload.scopeType === 'customer_type' ? [{ _id: 'c', label: '个人顾客（C 端）' }, { _id: 'b', label: '企业顾客（B 端）' }] : [{ _id: 'org-a', label: '甲方门店' }], total: payload.scopeType === 'customer_type' ? 2 : 1 };
           if (action === 'admin.orders.list' && location.search.includes('failOrders=1')) throw new Error('本地模拟订单读取失败');
           if (['admin.deliverySlots.upsert', 'admin.deliveryAreas.upsert'].includes(action)) { window.__writes.push(payload); return payload; }
-          if (action === 'admin.me') return { admin: { id: 'mock-local-admin', username: 'local-super', displayName: '本地测试', role: 'super_admin', status: 'active', phoneMasked: '138****0000', phoneVerificationStatus: 'unverified', permissions: ['*'] } };
+          if (action === 'admin.me') return { admin: { id: 'mock-local-admin', username: 'local-super', displayName: '本地测试', role: location.search.includes('operatorRefund=1') ? 'operator' : 'super_admin', status: 'active', phoneMasked: '138****0000', phoneVerificationStatus: 'unverified', permissions: location.search.includes('operatorRefund=1') ? ['refunds.read'] : ['*'] } };
           if (action === 'admin.imports.stage') {
             window.__writes.push(payload);
             return { staged: payload.rows.map(() => ({ status: 'staged' })) };
@@ -131,19 +158,33 @@ async function main() {
             window.__writes.push({ action, ...payload });
             return { _id: payload.id || 'category-mock' };
           }
+          if (['admin.banners.upsert', 'admin.homeSections.upsert'].includes(action)) {
+            window.__writes.push({ action, ...payload });
+            return { _id: payload.id || 'content-mock' };
+          }
+          if (action === 'admin.freightRules.upsert') {
+            window.__writes.push({ action, ...payload });
+            return { _id: payload.id || 'freight-mock' };
+          }
           const rows = {
             'admin.users.list': [{ _id: 'customer-private-id', displayName: '张先生 · 138****1234 · 客户号 KH-TEST1234', userType: 'c', status: 'active' }],
             'admin.users.organizations': [{ _id: 'org-a', label: '甲方门店' }],
-            'admin.media.list': [{ _id: 'm1', name: '秋季主图', type: 'image', enabled: true }, { _id: 'm2', name: '冬季主图', type: 'image', enabled: true }, ...window.__media],
-            'admin.products.list': [{ _id: 'p1', spuCode: 'P-001', name: '精选虾仁', status: 'draft' }, { _id: 'p-live', name: '在售虾仁', status: 'on_sale' }],
+            'admin.media.list': [{ _id: 'm1', name: '秋季主图', type: 'image', source: 'demo', temporary: true, version: 2, fileId: 'cloud://mock/autumn.png', targetPlatforms: ['miniapp'], startAt: '2026-09-26T02:00:00.000Z', endAt: '2026-09-27T02:00:00.000Z', enabled: true }, { _id: 'm2', name: '冬季主图', type: 'image', enabled: true }, ...window.__media],
+            'admin.products.list': [{ _id: 'p1', spuCode: 'P-001', name: '精选虾仁', categoryId: 'c1', coverMediaId: 'm1', status: 'draft' }, { _id: 'p-live', name: '在售虾仁', status: 'on_sale' }],
             'admin.skus.list': [{ _id: 's1', productId: 'p1', skuCode: 'S-001', specName: '500克/袋', status: 'draft' }],
-            'admin.prices.list': [{ _id: 'price-c', skuId: 's1', scopeType: 'customer_type', scopeId: 'c', amountCent: 1250, channel: 'miniapp', status: 'active' }, { _id: 'price-org', skuId: 's1', scopeType: 'organization', scopeId: 'org-a', amountCent: 1100, channel: 'miniapp', status: 'active' }],
+            'admin.prices.list': [{ _id: 'price-c', skuId: 's1', scopeType: 'customer_type', scopeId: 'c', amountCent: 1250, channel: 'miniapp', status: 'active', validFrom: '2026-09-26T02:00:00.000Z', validTo: '2026-09-27T02:00:00.000Z' }, { _id: 'price-org', skuId: 's1', scopeType: 'organization', scopeId: 'org-a', amountCent: 1100, channel: 'miniapp', status: 'active' }],
             'admin.categories.list': [{ _id: 'c1', name: '海鲜水产', imageMediaId: 'm1', status: 'enabled' }],
+            'admin.banners.list': [{ _id: 'banner-scheduled', title: '定时轮播', mediaAssetId: 'm1', jumpType: 'none', enabled: false, startAt: '2026-09-26T02:00:00.000Z', endAt: '2026-09-27T02:00:00.000Z', targetPlatforms: ['miniapp'] }],
+            'admin.homeSections.list': [{ _id: 'section-scheduled', title: '定时模块', moduleType: 'news', mediaAssetId: 'm1', jumpType: 'none', enabled: false, startAt: '2026-09-26T02:00:00.000Z', endAt: '2026-09-27T02:00:00.000Z', targetPlatforms: ['web'] }],
             'admin.deliveryAreas.list': [{ _id: 'area-private', name: '城区配送', status: 'active' }],
             'admin.warehouses.list': [{ _id: 'warehouse-private', name: '中心仓', status: 'active' }],
+            'admin.freightRules.list': [{ _id: 'freight-scheduled', name: '个人配送规则', deliveryAreaId: 'area-private', warehouseId: 'warehouse-private', customerType: 'c', priority: 7, baseFeeCent: 500, additionalFeeCent: 100, freeThresholdCent: 10000, validFrom: '2026-09-26T02:00:00.000Z', validTo: '2026-09-27T02:00:00.000Z', status: 'draft' }],
+            'admin.deliverySlots.list': [{ _id: 'slot-scheduled', name: '预约配送', deliveryAreaId: 'area-private', warehouseId: 'warehouse-private', startTime: '09:00', endTime: '12:00', validFrom: '2026-09-26T02:00:00.000Z', validTo: '2026-09-27T02:00:00.000Z', sort: 9, capacity: 4, status: 'draft' }],
             'admin.roles.list': [{ _id: 'r1', name: '商品运营', status: 'active' }],
             'admin.adminUsers.list': [{ id: 'mock-local-admin', username: 'local-super', displayName: '本地测试', role: 'super_admin', status: 'active', phoneMasked: '138****0000', phoneVerificationStatus: 'unverified' }]
           };
+          rows['admin.businessApplications.list'] = [{ _id: 'business-1', companyName: window.__businessUpdated ? '申请人更新后的企业' : '本地申请企业', unifiedCode: '123456789012345678', contactName: '申请人', contactPhoneMasked: '139****9000', storeName: '本地门店', storeAddress: '本地测试路', status: 'pending', submittedAt: '2026-09-24T08:00:00.000Z', reviewToken: window.__businessUpdated ? 'new-review-token' : 'current-review-token' }];
+          rows['admin.refunds.list'] = [{ _id: 'refund-local-01', refundNo: 'R-LOCAL-01', orderId: 'order-private-refund', amountCent: 3000, reason: '包装破损', status: 'requested' }];
           if (rows[action]) return { rows: rows[action], total: rows[action].length };
           return { rows: [], total: 0 };
         }
@@ -214,11 +255,43 @@ async function main() {
     assert.equal(await evaluate("document.querySelectorAll('#mediaTable tr').length"), 2);
     await evaluate("(() => { const input = document.querySelector('#mediaSearch'); input.value = '秋季'; input.dispatchEvent(new Event('input')); })()");
     assert.equal(await evaluate("document.querySelectorAll('#mediaTable tr').length"), 1, 'Media search must filter loaded rows');
+    await evaluate("document.querySelector('[data-edit-media-metadata=m1]').click()");
+    assert.equal(await evaluate("document.querySelector('#mediaMetadataForm [name=uploadFile]') === null"), true, '只改资料不应要求重新上传文件');
+    assert.equal(await evaluate("document.querySelector('#mediaMetadataForm [name=fileId]') === null"), true, '不让运维填写内部文件 ID');
+    assert.equal(await evaluate("document.querySelector('#mediaMetadataForm [name=startAt]').value"), '2026-09-26T10:00');
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('#mediaMetadataForm [name=targetPlatforms]:checked')].map(item => item.value)"), ['miniapp']);
+    await evaluate("(() => { const form = document.querySelector('#mediaMetadataForm'); form.querySelector('[name=targetPlatforms][value=miniapp]').checked = false; form.requestSubmit(); })()");
+    await pause(50);
+    assert.equal(await evaluate('window.__writes.length'), 0, '缺少适用端不能保存');
+    assert.match(await evaluate("document.querySelector('#globalMessage').textContent"), /至少选择一个适用端/);
+    assert.equal(await evaluate("(() => { const error = document.querySelector('#mediaMetadataError'); return Boolean(error && error.closest('#modalOverlay.is-open') && error.getClientRects().length && error.textContent.includes('至少选择一个适用端')); })()"), true, '保存错误必须在打开的弹窗内可见');
+    await evaluate("(() => { const form = document.querySelector('#mediaMetadataForm'); form.querySelector('[name=targetPlatforms][value=miniapp]').checked = true; form.elements.endAt.value = '2026-09-25T10:00'; form.requestSubmit(); })()");
+    await pause(50);
+    assert.equal(await evaluate('window.__writes.length'), 0, '日期倒置不能保存');
+    assert.match(await evaluate("document.querySelector('#globalMessage').textContent"), /结束展示时间不能早于开始时间/);
+    await evaluate("document.querySelector('#mediaMetadataForm').elements.endAt.value = '2026-09-27T10:00'");
+    await evaluate("(() => { const form = document.querySelector('#mediaMetadataForm'); form.elements.name.value = '秋季主图（已核对）'; window.confirm = text => { window.__metadataConfirm = text; return false; }; form.requestSubmit(); })()");
+    await pause(50);
+    assert.equal(await evaluate('window.__writes.length'), 0, '取消改资料不能写入');
+    assert.equal(await evaluate('window.__uploads'), 0, '改资料不能上传文件');
+    assert.match(await evaluate('window.__metadataConfirm'), /秋季主图（已核对）[\s\S]*已引用/);
+    await evaluate("(() => { window.confirm = () => true; document.querySelector('#mediaMetadataForm').requestSubmit(); })()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("window.__writes.some(item => item.action === 'admin.media.updateMetadata')")) break; await pause(50); }
+    assert.deepEqual(await evaluate("(() => { const row = window.__writes.find(item => item.action === 'admin.media.updateMetadata'); return { name: row.name, source: row.source, targetPlatforms: row.targetPlatforms, startAt: row.startAt, endAt: row.endAt, fileId: row.fileId }; })()"), { name: '秋季主图（已核对）', source: 'demo', targetPlatforms: ['miniapp'], startAt: '2026-09-26T02:00:00.000Z', endAt: '2026-09-27T02:00:00.000Z' }, '只提交资料，不传内部文件地址');
+    assert.equal(await evaluate('window.__uploads'), 0, '保存资料不能触发上传');
     await evaluate("document.querySelector('[data-add-form=\"#mediaForm\"]').click()");
     assert.equal(await evaluate("document.querySelector('#mediaForm [name=fileId]') === null"), true, 'Operators must not need file IDs');
-    assert.match(await evaluate("document.querySelector('#mediaVersionHint').textContent"), /24 MB/);
+    assert.match(await evaluate("document.querySelector('#mediaVersionHint').textContent"), /24 MB/, '未验云端大视频功能不能在日常后台宣称已开放');
+    assert.doesNotMatch(await evaluate("document.querySelector('#mediaVersionHint').textContent"), /100 MB/, '未启用时不得展示未验收容量');
+    await evaluate("(() => { const f = document.querySelector('#mediaForm'); const transfer = new DataTransfer(); transfer.items.add(new File([new Uint8Array(12)], '类型错误.mp4', { type: 'video/mp4' })); f.elements.name.value = '类型错误测试'; f.elements.type.value = 'image'; f.elements.uploadFile.files = transfer.files; f.requestSubmit(); })()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("document.querySelector('#mediaUploadStatus').textContent.includes('类型不一致')")) break; await pause(50); }
+    assert.match(await evaluate("document.querySelector('#mediaUploadStatus').textContent"), /类型不一致/);
+    assert.doesNotMatch(await evaluate("document.querySelector('#mediaUploadStatus').textContent"), /继续未完成的分段/, '类型错误不能误导运营人员以为上传可续传');
+    await evaluate("document.querySelector('#mediaForm').elements.name.value = ''");
     await evaluate("(async () => { const bytes = await fetch('/assets/logo.png').then(r => r.blob()); const file = new File([bytes], '本地标识测试.png', { type: 'image/png' }); window.__imageFixture = file; const transfer = new DataTransfer(); transfer.items.add(file); const f = document.querySelector('#mediaForm'); f.elements.uploadFile.files = transfer.files; f.elements.uploadFile.dispatchEvent(new Event('change')); window.__failRegistration = true; window.confirm = () => true; f.requestSubmit(); })()");
     for (let i = 0; i < 40; i += 1) { if (await evaluate("document.querySelector('#mediaUploadStatus').textContent.includes('模拟登记失败')")) break; await pause(50); }
+    assert.match(await evaluate("document.querySelector('#mediaUploadStatus').textContent"), /文件已上传.*不会重复上传/, '登记失败后应说明文件已上传，可直接重试登记');
+    assert.doesNotMatch(await evaluate("document.querySelector('#mediaUploadStatus').textContent"), /继续未完成的分段/, '登记失败不应误报分段上传未完成');
     assert.equal(await evaluate('window.__uploads'), 1);
     assert.equal(await evaluate('window.__media.length'), 0, 'Failed registration must not create a media record');
     await evaluate("window.confirm = () => true; document.querySelector('#mediaForm').requestSubmit()");
@@ -235,6 +308,11 @@ async function main() {
     assert.equal(await evaluate('window.__media[1].type'), 'video');
     assert.equal(await evaluate('window.__media[1].mimeType'), 'video/webm');
     assert.equal(await evaluate('window.__uploads'), 2);
+    await evaluate("(() => { window.MengshixianAdminApi.config.largeVideoUploadEnabled = true; document.querySelector('[data-add-form=\"#mediaForm\"]').click(); const f = document.querySelector('#mediaForm'); const file = new File([new Uint8Array(30 * 1024 * 1024)], '本地容量检查.webm', { type: 'video/webm' }); const transfer = new DataTransfer(); transfer.items.add(file); f.elements.type.value = 'video'; f.elements.name.value = '本地容量检查'; f.elements.uploadFile.files = transfer.files; window.confirm = () => false; f.requestSubmit(); })()");
+    assert.match(await evaluate("document.querySelector('#mediaVersionHint').textContent"), /100 MB/, '只在本地测试显式打开容量开关');
+    for (let i = 0; i < 80; i += 1) { if (await evaluate("document.querySelector('#mediaUploadStatus').textContent.includes('已取消登记')")) break; await pause(50); }
+    assert.match(await evaluate("document.querySelector('#mediaUploadStatus').textContent"), /已取消登记/, '30 MB 视频应通过素材表单容量检查并进入登记确认');
+    assert.equal(await evaluate('window.__media.length'), 2, '取消登记不能产生素材记录');
     await send('Page.navigate', { url: 'http://127.0.0.1:8765/categories.html' });
     for (let i = 0; i < 40; i += 1) {
       if (await evaluate("Boolean(document.querySelector('#categoriesTable [data-edit-category=c1]'))")) break;
@@ -258,10 +336,42 @@ async function main() {
     await evaluate("document.querySelector('[data-add-form=\"#bannerForm\"]').click()");
     assert.equal(await evaluate("document.querySelector('#bannerForm [name=enabled]').checked"), false, 'New banner must be draft');
     assert.equal(await evaluate("document.querySelector('#bannerForm [name=mediaAssetId]').tagName"), 'SELECT');
+    assert.equal(await evaluate("Boolean(document.querySelector('#bannerForm [data-content-media-search]'))"), true, '首页素材应有按名称查找入口');
+    await evaluate("(() => { const search = document.querySelector('#bannerForm [data-content-media-search]'); search.value = '冬季'; search.dispatchEvent(new Event('input', { bubbles: true })); })()");
+    assert.equal(await evaluate("Boolean(document.querySelector('#bannerForm [name=mediaAssetId] option[value=m1]'))"), false, '搜索结果不应继续混入无关素材');
+    await evaluate("(() => { const search = document.querySelector('#bannerForm [data-content-media-search]'); search.value = ''; search.dispatchEvent(new Event('input', { bubbles: true })); })()");
+    assert.equal(await evaluate("Boolean(document.querySelector('#bannerForm [name=mediaAssetId] option[value=m1]'))"), true, '清空搜索后可重新选择原素材');
+    assert.equal(await evaluate("Boolean(document.querySelector('#bannerForm [data-content-preview-media]'))"), true, '首页素材应能在保存前预览');
+    await evaluate("(() => { window.cloudbase = { init: () => ({ getTempFileURL: async () => ({ fileList: [{ tempFileURL: '/assets/logo.png' }] }) }) }; const form = document.querySelector('#bannerForm'); form.elements.mediaAssetId.value = 'm1'; form.elements.mediaAssetId.dispatchEvent(new Event('change', { bubbles: true })); form.querySelector('[data-content-preview-media]').click(); })()");
+    for (let i = 0; i < 30; i += 1) { if (await evaluate("Boolean(document.querySelector('#bannerForm [data-content-media-preview] img')?.complete)")) break; await pause(50); }
+    assert.equal(await evaluate("document.querySelector('#bannerForm [data-content-media-preview] img')?.naturalWidth > 0"), true, '所选素材的图片应真实加载');
     await evaluate("(() => { const form = document.querySelector('#bannerForm'); form.elements.title.value = '秋季轮播'; form.elements.mediaAssetId.value = 'm1'; form.elements.jumpType.value = 'product'; form.elements.jumpType.dispatchEvent(new Event('change', { bubbles: true })); form.elements.jumpTarget.value = 'p1'; form.elements.jumpTarget.dispatchEvent(new Event('change', { bubbles: true })); })()");
     assert.equal(await evaluate("Boolean(document.querySelector('#bannerForm [name=jumpTarget] option[value=p1]'))"), false, 'Draft product must not be selectable for homepage');
     await evaluate("(() => { const target = document.querySelector('#bannerForm [name=jumpTarget]'); target.value = 'p-live'; target.dispatchEvent(new Event('change', { bubbles: true })); })()");
     assert.match(await evaluate("document.querySelector('#bannerForm .content-save-preview').textContent"), /秋季轮播[\s\S]*秋季主图[\s\S]*在售虾仁[\s\S]*仅保存草稿/);
+    await evaluate("document.querySelector('[data-edit-banner=banner-scheduled]').click()");
+    assert.equal(await evaluate("document.querySelector('#bannerForm [name=startAt]').value"), '2026-09-26T10:00');
+    assert.equal(await evaluate("document.querySelector('#bannerForm [name=endAt]').value"), '2026-09-27T10:00');
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('#bannerForm [name=targetPlatforms]:checked')].map(input => input.value)"), ['miniapp']);
+    await evaluate("(() => { const form = document.querySelector('#bannerForm'); form.querySelectorAll('[name=targetPlatforms]').forEach(input => { input.checked = false; }); form.requestSubmit(); })()");
+    assert.equal(await evaluate("(() => { const error = document.querySelector('#bannerForm [data-content-form-error]'); return Boolean(error && error.getClientRects().length && error.textContent.includes('至少选择一个适用端')); })()"), true, '首页保存错误应在打开的弹窗内可见');
+    await evaluate("document.querySelector('#bannerForm [name=targetPlatforms][value=miniapp]').checked = true");
+    await evaluate("document.querySelector('#bannerForm').requestSubmit()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("window.__writes.some(item => item.action === 'admin.banners.upsert')")) break; await pause(50); }
+    assert.deepEqual(await evaluate("(() => { const row = window.__writes.find(item => item.action === 'admin.banners.upsert'); return { startAt: row.startAt, endAt: row.endAt, targetPlatforms: row.targetPlatforms }; })()"), { startAt: '2026-09-26T02:00:00.000Z', endAt: '2026-09-27T02:00:00.000Z', targetPlatforms: ['miniapp'] }, '编辑轮播后应保留定时和适用端');
+    await send('Page.navigate', { url: 'http://127.0.0.1:8765/sections.html' });
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("Boolean(document.querySelector('[data-edit-section=section-scheduled]'))")) break; await pause(100); }
+    await evaluate("document.querySelector('[data-edit-section=section-scheduled]').click()");
+    assert.equal(await evaluate("Boolean(document.querySelector('#sectionForm [data-content-media-search]'))"), true, '首页模块也应按名称查找素材');
+    assert.equal(await evaluate("Boolean(document.querySelector('#sectionForm [data-content-preview-media]'))"), true, '首页模块也应能预览所选素材');
+    assert.equal(await evaluate("document.querySelector('#sectionForm [name=startAt]').value"), '2026-09-26T10:00');
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('#sectionForm [name=targetPlatforms]:checked')].map(input => input.value)"), ['web']);
+    await evaluate("(() => { const form = document.querySelector('#sectionForm'); form.querySelectorAll('[name=targetPlatforms]').forEach(input => { input.checked = false; }); form.requestSubmit(); })()");
+    assert.equal(await evaluate("(() => { const error = document.querySelector('#sectionForm [data-content-form-error]'); return Boolean(error && error.getClientRects().length && error.textContent.includes('至少选择一个适用端')); })()"), true, '首页模块保存错误也应在弹窗内可见');
+    await evaluate("document.querySelector('#sectionForm [name=targetPlatforms][value=web]').checked = true");
+    await evaluate("document.querySelector('#sectionForm').requestSubmit()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("window.__writes.some(item => item.action === 'admin.homeSections.upsert')")) break; await pause(50); }
+    assert.deepEqual(await evaluate("(() => { const row = window.__writes.find(item => item.action === 'admin.homeSections.upsert'); return { startAt: row.startAt, endAt: row.endAt, targetPlatforms: row.targetPlatforms }; })()"), { startAt: '2026-09-26T02:00:00.000Z', endAt: '2026-09-27T02:00:00.000Z', targetPlatforms: ['web'] }, '编辑首页模块后应保留定时和适用端');
     await send('Page.navigate', { url: 'http://127.0.0.1:8765/pricing.html' });
     for (let i = 0; i < 40; i += 1) {
       if (await evaluate("Boolean(document.querySelector('[data-add-form=\"#priceForm\"]')) && document.querySelectorAll('#pricesTable tr').length === 2")) break;
@@ -293,6 +403,31 @@ async function main() {
       await pause(100);
     }
     assert.equal(await evaluate('window.__writes[0].amountCent'), 2500, '25 yuan must be stored as 2500 cents');
+    await evaluate("document.querySelector('[data-edit-price=price-c]').click()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("document.querySelector('#priceForm [name=scopeId]').value === 'c'")) break; await pause(50); }
+    assert.equal(await evaluate("document.querySelector('#priceForm [name=validFrom]').value"), '2026-09-26T10:00');
+    assert.equal(await evaluate("document.querySelector('#priceForm [name=validTo]').value"), '2026-09-27T10:00');
+    assert.match(await evaluate("document.querySelector('#priceForm .money-save-preview').textContent"), /2026-09-26T10:00/);
+    await evaluate("(() => { window.confirm = () => true; document.querySelector('#priceForm').requestSubmit(); })()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("window.__writes.some(item => item.action === 'admin.prices.upsert' && item.id === 'price-c')")) break; await pause(50); }
+    assert.deepEqual(await evaluate("(() => { const row = window.__writes.find(item => item.action === 'admin.prices.upsert' && item.id === 'price-c'); return { validFrom: row.validFrom, validTo: row.validTo }; })()"), { validFrom: '2026-09-26T02:00:00.000Z', validTo: '2026-09-27T02:00:00.000Z' }, '编辑价格后应保留原生效区间');
+    await send('Page.navigate', { url: 'http://127.0.0.1:8765/freight.html' });
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("Boolean(document.querySelector('[data-edit-freight=freight-scheduled]'))")) break; await pause(50); }
+    assert.match(await evaluate("document.querySelector('#freightRulesTable').textContent"), /个人顾客/);
+    await evaluate("document.querySelector('[data-edit-freight=freight-scheduled]').click()");
+    assert.equal(await evaluate("document.querySelector('#freightForm [name=customerType]').value"), 'c');
+    assert.equal(await evaluate("document.querySelector('#freightForm [name=priority]').value"), '7');
+    assert.equal(await evaluate("document.querySelector('#freightForm [name=validFrom]').value"), '2026-09-26T10:00');
+    assert.equal(await evaluate("document.querySelector('#freightForm [name=validTo]').value"), '2026-09-27T10:00');
+    assert.match(await evaluate("document.querySelector('#freightForm .money-save-preview').textContent"), /个人顾客/);
+    assert.match(await evaluate("document.querySelector('#freightForm .money-save-preview').textContent"), /2026-09-26T10:00/);
+    await evaluate("(() => { window.confirm = text => { window.__freightConfirm = text; return false; }; document.querySelector('#freightForm').requestSubmit(); })()");
+    await pause(50);
+    assert.equal(await evaluate('window.__writes.length'), 0, '取消运费修改不能写入');
+    assert.match(await evaluate('window.__freightConfirm'), /个人顾客[\s\S]*优先[\s\S]*2026-09-26T10:00/);
+    await evaluate("(() => { window.confirm = () => true; document.querySelector('#freightForm').requestSubmit(); })()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("window.__writes.some(item => item.action === 'admin.freightRules.upsert')")) break; await pause(50); }
+    assert.deepEqual(await evaluate("(() => { const row = window.__writes.find(item => item.action === 'admin.freightRules.upsert'); return { customerType: row.customerType, priority: row.priority, validFrom: row.validFrom, validTo: row.validTo }; })()"), { customerType: 'c', priority: 7, validFrom: '2026-09-26T02:00:00.000Z', validTo: '2026-09-27T02:00:00.000Z' }, '编辑运费时原适用顾客、优先级和生效日期不能被清空');
     await send('Page.navigate', { url: 'http://127.0.0.1:8765/access.html' });
     for (let i = 0; i < 40; i += 1) {
       if (await evaluate("Boolean(document.querySelector('[data-staff-action=\"create\"]'))")) break;
@@ -395,12 +530,22 @@ async function main() {
     await evaluate('URL.revokeObjectURL(window.__videoPreviewUrl)');
     await send('Page.navigate', { url: 'http://127.0.0.1:8765/products.html' });
     for (let i = 0; i < 40; i += 1) { if (await evaluate("Boolean(document.querySelector('[data-add-form=\"#productMediaForm\"]'))")) break; await pause(50); }
+    assert.match(await evaluate("document.querySelector('[data-tab=\"prod-skus\"]').textContent"), /销售规格/, '商品页应使用运维人员看得懂的名称');
+    await evaluate("document.querySelector('[data-tab=\"prod-skus\"]').click(); document.querySelector('[data-add-form=\"#skuForm\"]').click()");
+    assert.match(await evaluate("document.querySelector('#modalTitle').textContent"), /新增销售规格/);
+    assert.doesNotMatch(await evaluate("document.querySelector('#modalBody').innerText"), /SKU|关联商品 ID/, '新增规格不能要求理解内部编号');
+    await evaluate("document.querySelector('#modalClose').click()");
     await evaluate("document.querySelector('[data-tab=\"prod-media\"]').click(); document.querySelector('[data-add-form=\"#productMediaForm\"]').click()");
     assert.deepEqual(await evaluate("['productId','skuId','mediaAssetId'].map(name => document.querySelector('#productMediaForm').elements[name].tagName)"), ['SELECT', 'SELECT', 'SELECT']);
     await evaluate("(() => { const f = document.querySelector('#productMediaForm'); f.elements.productId.value = 'p1'; f.elements.productId.dispatchEvent(new Event('change')); })()");
     assert.match(await evaluate("document.querySelector('#productMediaForm').elements.skuId.textContent"), /500克/);
     await evaluate("(() => { const f = document.querySelector('#productMediaForm'); f.elements.skuId.value = 's1'; f.elements.productId.value = ''; f.elements.productId.dispatchEvent(new Event('change')); })()");
     assert.equal(await evaluate("document.querySelector('#productMediaForm').elements.skuId.value"), '', 'Changing product must clear previous SKU association');
+    await send('Page.navigate', { url: 'http://127.0.0.1:8765/products.html?failProductMedia=1' });
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("Boolean(document.querySelector('[data-edit-product=\"p1\"]'))")) break; await pause(50); }
+    await evaluate("document.querySelector('[data-edit-product=\"p1\"]').click()");
+    assert.equal(await evaluate("document.querySelector('#productForm').elements.coverMediaId.value"), 'm1', '素材列表暂不可用时，编辑商品不能清空原主图关联');
+    assert.match(await evaluate("document.querySelector('#productForm').elements.coverMediaId.selectedOptions[0].textContent"), /原主图暂不可用.*保持原关联/);
     await send('Page.navigate', { url: 'http://127.0.0.1:8765/users.html' });
     for (let i = 0; i < 40; i += 1) { if (await evaluate("Boolean(document.querySelector('[data-edit-user-pricing]'))")) break; await pause(50); }
     assert.match(await evaluate("document.querySelector('#usersTable').textContent"), /张先生/);
@@ -442,6 +587,13 @@ async function main() {
     await evaluate("window.confirm = () => true; document.querySelector('#deliverySlotForm').requestSubmit()");
     for (let i = 0; i < 60; i += 1) { if (await evaluate('window.__writes.length === 1')) break; await pause(50); }
     assert.equal(await evaluate('window.__writes[0].warehouseId'), 'warehouse-private');
+    await evaluate("document.querySelector('[data-edit-delivery-slot=slot-scheduled]').click()");
+    assert.equal(await evaluate("document.querySelector('#deliverySlotForm [name=validFrom]').value"), '2026-09-26T10:00');
+    assert.equal(await evaluate("document.querySelector('#deliverySlotForm [name=validTo]').value"), '2026-09-27T10:00');
+    assert.equal(await evaluate("document.querySelector('#deliverySlotForm [name=sort]').value"), '9');
+    await evaluate("(() => { window.confirm = () => true; document.querySelector('#deliverySlotForm').requestSubmit(); })()");
+    for (let i = 0; i < 60; i += 1) { if (await evaluate('window.__writes.length === 2')) break; await pause(50); }
+    assert.deepEqual(await evaluate("(() => { const row = window.__writes[1]; return { validFrom: row.validFrom, validTo: row.validTo, sort: row.sort }; })()"), { validFrom: '2026-09-26T02:00:00.000Z', validTo: '2026-09-27T02:00:00.000Z', sort: 9 }, '编辑时段后不应丢失日期和显示顺序');
     await send('Page.navigate', { url: 'http://127.0.0.1:8765/areas.html' });
     for (let i = 0; i < 60; i += 1) { if (await evaluate("Boolean(document.querySelector('[data-add-form=\"#deliveryAreaForm\"]'))")) break; await pause(50); }
     await evaluate("document.querySelector('[data-add-form=\"#deliveryAreaForm\"]').click()");
@@ -458,6 +610,93 @@ async function main() {
     assert.equal(await evaluate('window.__writes[0].status'), 'disabled');
     assert.equal(await evaluate('window.__writes[0].regionCodes.length'), 1);
     assert.deepEqual(await evaluate('window.__writes[0].warehouseIds'), ['warehouse-private']);
+    await send('Page.navigate', { url: 'http://127.0.0.1:8765/opening-check.html' });
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("Boolean(document.querySelector('#openingCheckItems'))")) break; await pause(50); }
+    assert.equal(await evaluate("Boolean(document.querySelector('#openingCheckItems'))"), true, '开店检查必须有独立页面');
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("document.querySelector('#openingCheckItems')?.textContent.includes('配送区域')")) break; await pause(50); }
+    assert.match(await evaluate("document.querySelector('#openingCheckItems').textContent"), /配送区域[\s\S]*缺少启用的配送区域/);
+    assert.match(await evaluate("document.querySelector('#openingCheckItems').textContent"), /配送时段[\s\S]*缺少生效的配送时段/);
+    assert.match(await evaluate("document.querySelector('#openingCheckItems').textContent"), /库存[\s\S]*缺少库存记录/);
+    assert.equal(await evaluate("Boolean(document.querySelector('#openingCheckItems a[href=\"areas.html\"]') && document.querySelector('#openingCheckItems a[href=\"slots.html\"]'))"), true);
+    assert.match(await evaluate("document.querySelector('#openingCheckPayment').textContent"), /收款[\s\S]*尚未核验/);
+    assert.doesNotMatch(await evaluate("document.querySelector('#openingCheckStatus').textContent"), /可以开店|已可下单/);
+    await send('Page.navigate', { url: 'http://127.0.0.1:8765/opening-check.html?failOpening=1' });
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("document.querySelector('#openingCheckStatus')?.textContent.includes('暂不可用')")) break; await pause(50); }
+    assert.match(await evaluate("document.querySelector('#openingCheckStatus').textContent"), /暂不可用/);
+    assert.doesNotMatch(await evaluate("document.querySelector('#openingCheckItems').textContent"), /缺少启用的配送区域/, '读取失败不能假装没有配置');
+    await send('Page.navigate', { url: 'http://127.0.0.1:8765/businesses.html' });
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("Boolean(document.querySelector('[data-review-business]'))")) break; await pause(50); }
+    assert.equal(await evaluate("Boolean(document.querySelector('[data-review-business]'))"), true, '企业申请须先查看含证照预览的核对页，不能在表格中直接批准');
+    assert.equal(await evaluate("Boolean(document.querySelector('[data-approve-business], [data-reject-business]'))"), false, '列表不能保留一键审核按钮');
+    await evaluate("window.__writes = []; document.querySelector('[data-review-business]').click()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("document.querySelector('#businessLicenseImage').naturalWidth > 0 && document.querySelector('#businessStorefrontImage').naturalWidth > 0")) break; await pause(50); }
+    assert.equal(await evaluate("document.querySelector('#businessReviewDialog').open"), true);
+    assert.equal(await evaluate("document.querySelector('#businessLicenseImage').naturalWidth > 0 && document.querySelector('#businessStorefrontImage').naturalWidth > 0"), true, '两张真实可显示的图片是审核前提');
+    assert.equal(await evaluate("document.querySelector('[data-business-decision=approved]').disabled"), true, '不勾选核对不能审核');
+    assert.doesNotMatch(await evaluate("document.querySelector('#businessReviewDialog').textContent"), /cloud:\/\//, '页面不暴露素材内部编号');
+    await evaluate("window.confirm = () => false; document.querySelector('#businessReviewConfirmed').click(); document.querySelector('[data-business-decision=approved]').click()");
+    await pause(50);
+    assert.equal(await evaluate('window.__writes.length'), 0, '取消企业审核不能写入');
+    await evaluate("window.confirm = text => { window.__businessConfirmation = text; return true; }; document.querySelector('[data-business-decision=approved]').click()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate('window.__writes.length === 1')) break; await pause(50); }
+    assert.match(await evaluate('window.__businessConfirmation'), /本地申请企业[\s\S]*本地门店[\s\S]*本地测试路[\s\S]*申请人/);
+    assert.deepEqual(await evaluate('window.__writes[0]'), { action: 'admin.businessApplications.review', id: 'business-1', decision: 'approved', reviewToken: 'current-review-token' }, '审核必须携带当前页面核对凭据，不让运营手填');
+    await send('Page.navigate', { url: 'http://127.0.0.1:8765/businesses.html?missingBusinessPreview=1' });
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("Boolean(document.querySelector('[data-review-business]'))")) break; await pause(50); }
+    await evaluate("window.__writes = []; document.querySelector('[data-review-business]').click()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("document.querySelector('#businessLicenseStatus').textContent.includes('加载失败')")) break; await pause(50); }
+    assert.match(await evaluate("document.querySelector('#businessLicenseStatus').textContent"), /加载失败/);
+    await evaluate("document.querySelector('#businessReviewConfirmed').click()");
+    assert.equal(await evaluate("document.querySelector('[data-business-decision=approved]').disabled && document.querySelector('[data-business-decision=rejected]').disabled"), true, '任一证明图片打不开时两个审核结论都不可提交');
+    assert.equal(await evaluate('window.__writes.length'), 0);
+    await send('Page.navigate', { url: 'http://127.0.0.1:8765/businesses.html?staleBusiness=1' });
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("Boolean(document.querySelector('[data-review-business]'))")) break; await pause(50); }
+    await evaluate("window.__writes = []; document.querySelector('[data-review-business]').click()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("document.querySelector('#businessLicenseImage').naturalWidth > 0 && document.querySelector('#businessStorefrontImage').naturalWidth > 0")) break; await pause(50); }
+    await evaluate("window.confirm = () => true; document.querySelector('#businessReviewConfirmed').click(); document.querySelector('[data-business-decision=approved]').click()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("document.querySelector('#globalMessage')?.textContent.includes('已变化')")) break; await pause(50); }
+    assert.match(await evaluate("document.querySelector('#globalMessage').textContent"), /已变化.*重新核对/);
+    assert.equal(await evaluate("document.querySelector('[data-business-decision=approved]').disabled"), true, '申请资料变化后不得沿用旧页面继续审核');
+    assert.equal(await evaluate('window.__writes.length'), 0, '过期审核不得提交成功');
+    assert.match(await evaluate("document.querySelector('#businessApplicationsTable').textContent"), /申请人更新后的企业/, '过期申请应自动刷新供重新核对');
+    await send('Page.navigate', { url: 'http://127.0.0.1:8765/refunds.html' });
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("Boolean(document.querySelector('[data-review-refund]'))")) break; await pause(50); }
+    assert.equal(await evaluate("Boolean(document.querySelector('[data-review-refund]'))"), true, '退款必须先进入核对页');
+    assert.equal(await evaluate("Boolean(document.querySelector('[data-approve-refund], [data-reject-refund]'))"), false, '退款列表不能一键通过或驳回');
+    assert.doesNotMatch(await evaluate("document.querySelector('#refundsTable').textContent"), /order-private-refund/, '列表不能显示内部订单 ID');
+    await evaluate("window.__writes = []; document.querySelector('[data-review-refund]').click()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("document.querySelector('#refundReviewDialog')?.open && document.querySelector('#refundReviewDetail')?.textContent.includes('本地鱼丸')")) break; await pause(50); }
+    assert.match(await evaluate("document.querySelector('#refundReviewDetail').textContent"), /O-LOCAL-01[\s\S]*本地鱼丸[\s\S]*¥30\.00[\s\S]*包装破损/);
+    assert.equal(await evaluate("document.querySelector('[data-refund-decision=approved]').disabled"), true, '未勾选原单核对不能审核');
+    await evaluate("window.confirm = () => false; document.querySelector('#refundReviewConfirmed').click(); document.querySelector('[data-refund-decision=approved]').click()");
+    await pause(50);
+    assert.equal(await evaluate('window.__writes.length'), 0, '取消退款审核不能写入');
+    await evaluate("window.confirm = () => true; document.querySelector('[data-refund-decision=approved]').click()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate('window.__writes.length === 1')) break; await pause(50); }
+    assert.deepEqual(await evaluate('window.__writes[0]'), { action: 'admin.refunds.review', id: 'refund-local-01', decision: 'approved', reviewToken: 'refund-review-token' });
+    await send('Page.navigate', { url: 'http://127.0.0.1:8765/refunds.html?staleRefund=1' });
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("Boolean(document.querySelector('[data-review-refund]'))")) break; await pause(50); }
+    await evaluate("window.__writes = []; document.querySelector('[data-review-refund]').click()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("document.querySelector('#refundReviewDetail')?.textContent.includes('本地鱼丸')")) break; await pause(50); }
+    await evaluate("window.confirm = () => true; document.querySelector('#refundReviewConfirmed').click(); document.querySelector('[data-refund-decision=approved]').click()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("document.querySelector('#refundReviewStatus')?.textContent.includes('已变化')")) break; await pause(50); }
+    assert.match(await evaluate("document.querySelector('#refundReviewStatus').textContent"), /已变化/);
+    assert.equal(await evaluate("document.querySelector('[data-refund-decision=approved]').disabled"), true);
+    assert.equal(await evaluate('window.__writes.length'), 0);
+    await send('Page.navigate', { url: 'http://127.0.0.1:8765/refunds.html?overRefund=1' });
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("Boolean(document.querySelector('[data-review-refund]'))")) break; await pause(50); }
+    await evaluate("document.querySelector('[data-review-refund]').click()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("document.querySelector('#refundReviewStatus')?.textContent.includes('超过')")) break; await pause(50); }
+    assert.match(await evaluate("document.querySelector('#refundReviewStatus').textContent"), /超过当前剩余可退金额/);
+    await evaluate("document.querySelector('#refundReviewConfirmed').click()");
+    assert.equal(await evaluate("document.querySelector('[data-refund-decision=approved]').disabled"), true, '退款超额时页面不得放行');
+    await send('Page.navigate', { url: 'http://127.0.0.1:8765/refunds.html?operatorRefund=1' });
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("Boolean(document.querySelector('[data-review-refund]'))")) break; await pause(50); }
+    await evaluate("document.querySelector('[data-review-refund]').click()");
+    for (let i = 0; i < 40; i += 1) { if (await evaluate("document.querySelector('#refundReviewStatus')?.textContent.includes('无退款审核权限')")) break; await pause(50); }
+    assert.match(await evaluate("document.querySelector('#refundReviewStatus').textContent"), /无退款审核权限/);
+    await evaluate("document.querySelector('#refundReviewConfirmed').click()");
+    assert.equal(await evaluate("document.querySelector('[data-refund-decision=approved]').disabled"), true, '运营仅可查看不得批准退款');
     await require('./order-receipts-browser.cjs')({ send, evaluate, pause });
     if (process.argv.includes('--actual-receipts')) await require('./receipt-actual-api-browser.cjs')({ send, evaluate, pause, socket });
     if (process.argv.includes('--actual-catalog')) await require('./catalog-actual-api-browser.cjs')({ send, evaluate, pause, socket });

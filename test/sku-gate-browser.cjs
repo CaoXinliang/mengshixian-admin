@@ -37,7 +37,7 @@ module.exports = async function skuGateFlow({ fixture, send, evaluate, pause, wa
   await fixture.call('admin.prices.upsert', { skuId: draftSku._id, scopeType: 'public', amountCent: 999, status: 'active' });
   await fixture.call('admin.inventory.adjust', { warehouseId: invRow.warehouseId, skuId: draftSku._id, change: 8, idempotencyKey: `sku-gate-${draftSku._id}` });
   await evaluate(`document.querySelector('[data-publish-sku=${draftSku._id}]').click(); true`);
-  await waitFor("document.querySelector('#globalMessage')?.textContent.includes('SKU 已上架')");
+  await waitFor("document.querySelector('#globalMessage')?.textContent.includes('销售规格已上架')");
   assert.equal((await skusOf()).find((item) => item._id === draftSku._id).status, 'on_sale', '补齐后页面上架应成功');
 
   const catalog = await fixture.customerCall('sku-gate-customer', 'catalog.products', {});
@@ -47,9 +47,9 @@ module.exports = async function skuGateFlow({ fixture, send, evaluate, pause, wa
   // 合法通道回归：页面上下架后再上架
   await waitFor(`Boolean(document.querySelector('[data-offsale-sku=${draftSku._id}]'))`);
   await evaluate(`document.querySelector('[data-offsale-sku=${draftSku._id}]').click(); true`);
-  await waitFor("document.querySelector('#globalMessage')?.textContent.includes('SKU 已下架')");
+  await waitFor("document.querySelector('#globalMessage')?.textContent.includes('销售规格已下架')");
   await waitFor(`Boolean(document.querySelector('[data-publish-sku=${draftSku._id}]'))`);
   await evaluate(`document.querySelector('[data-publish-sku=${draftSku._id}]').click(); true`);
-  await waitFor("document.querySelector('#globalMessage')?.textContent.includes('SKU 已上架')");
+  await waitFor("document.querySelector('#globalMessage')?.textContent.includes('销售规格已上架')");
   console.log('SKU gate browser: 缺项拒绝、补齐上架、顾客可见、重启用均通过');
 };

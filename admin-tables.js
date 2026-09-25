@@ -12,6 +12,7 @@
         : state.pricingTargetNames?.[item.scopeType]?.[item.scopeId]
           || (state.loadStates?.pricingTargetNames === 'failed' ? '对象名称暂不可用，请刷新' : '原对象已不可用，请核对');
     const jumpLabel = (item) => item.jumpType === 'product' ? `商品：${productNames.get(item.jumpTarget) || '原商品已不存在'}` : item.jumpType === 'category' ? `分类：${categoryNames.get(item.jumpTarget) || '原分类已不存在'}` : item.jumpType === 'url' ? `网页：${item.jumpTarget || '未设置'}` : '不跳转';
+    const freightAudience = (type) => type === 'c' ? '仅个人顾客' : type === 'b' ? '仅企业顾客' : !type ? '个人和企业顾客' : '原适用顾客需核对';
 
     // ---- 批量导入 ----
     paginateRows(state.imports, (item, seq) => {
@@ -41,7 +42,7 @@
 
     // ---- 企业审核 ----
     paginateRows(state.businessApplications, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.companyName)}<br><code>${escapeHtml(item.unifiedCode)}</code></td><td>${escapeHtml(item.contactName)} ${escapeHtml(item.contactPhoneMasked)}</td><td>${formatDate(item.submittedAt)}</td><td>${badge(item.status)}</td><td class="col-action">${item.status === 'pending' ? `<button data-approve-business="${item._id}">通过</button><button data-reject-business="${item._id}">驳回</button>` : '—'}</td></tr>`,
+      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.companyName)}<br><code>${escapeHtml(item.unifiedCode)}</code></td><td>${escapeHtml(item.contactName)} ${escapeHtml(item.contactPhoneMasked)}</td><td>${formatDate(item.submittedAt)}</td><td>${badge(item.status)}</td><td class="col-action"><button data-review-business="${escapeHtml(item._id)}">查看并审核</button></td></tr>`,
       'businessApplicationsTable', 5, 'businessApplications');
 
     // ---- 用户列表 ----
@@ -67,7 +68,7 @@
 
     // ---- 运费规则 ----
     paginateRows(state.freightRules, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.name)}</td><td>${escapeHtml(state.deliveryAreas.find((area) => area._id === item.deliveryAreaId)?.name || item.deliveryAreaId)}</td><td>${formatCents(item.baseFeeCent)}<br><small>附加运费 ${item.additionalFeeCent ? formatCents(item.additionalFeeCent) : '—'}</small><br><small>免运门槛 ${item.freeThresholdCent ? formatCents(item.freeThresholdCent) : '—'}</small></td><td>${badge(item.status)}</td><td class="col-action"><button data-edit-freight="${item._id}">编辑</button></td></tr>`,
+      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.name)}<small>${freightAudience(item.customerType)} · 优先级 ${escapeHtml(item.priority || 0)}</small></td><td>${escapeHtml(state.deliveryAreas.find((area) => area._id === item.deliveryAreaId)?.name || item.deliveryAreaId)}</td><td>${formatCents(item.baseFeeCent)}<br><small>附加运费 ${item.additionalFeeCent ? formatCents(item.additionalFeeCent) : '—'}</small><br><small>免运门槛 ${item.freeThresholdCent ? formatCents(item.freeThresholdCent) : '—'}</small></td><td>${badge(item.status)}${item.validFrom || item.validTo ? `<small>${item.validFrom ? `从 ${escapeHtml(formatDate(item.validFrom))}` : '不限定开始'} 至 ${item.validTo ? escapeHtml(formatDate(item.validTo)) : '不限定结束'}</small>` : ''}</td><td class="col-action"><button data-edit-freight="${item._id}">编辑</button></td></tr>`,
       'freightRulesTable', 5, 'freightRules');
 
     // ---- 配送时段 ----
@@ -91,10 +92,10 @@
       return `<tr><td class="col-idx" style="text-align:center">${seq}</td><td><code>${escapeHtml(item.orderNo)}</code></td><td>${escapeHtml((item.addressSnapshot && item.addressSnapshot.name) || '—')}</td><td>${badge(item.status)}</td><td>${formatCents(item.totalAmountCent)}</td><td>${badge(item.paymentStatus)}</td><td>${formatDate(item.createdAt)}</td><td class="col-action">${fulfillmentButton || receiptButton ? `${fulfillmentButton} ${receiptButton}` : '—'}</td></tr>`;
     }, 'ordersTable', 6, 'orders');
 
-    const orderNumbers = new Map((state.orders || []).map((item) => [item._id, item.orderNo || item._id]));
+    const orderNumbers = new Map((state.orders || []).map((item) => [item._id, item.orderNo || '']));
     // ---- 退款 ----
     paginateRows(state.refunds, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td><code>${escapeHtml(item.refundNo)}</code></td><td><code>${escapeHtml(orderNumbers.get(item.orderId) || item.orderId)}</code></td><td>${formatCents(item.amountCent)}</td><td>${escapeHtml(item.reason || '—')}</td><td>${badge(item.status)}</td><td class="col-action">${item.status === 'requested' ? `<button data-approve-refund="${item._id}">审核通过</button><button data-reject-refund="${item._id}">驳回</button>` : '—'}</td></tr>`,
+      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td><code>${escapeHtml(item.refundNo)}</code></td><td>${escapeHtml(orderNumbers.get(item.orderId) || '打开核对页查看原订单')}</td><td>${formatCents(item.amountCent)}</td><td>${escapeHtml(item.reason || '—')}</td><td>${badge(item.status)}</td><td class="col-action"><button data-review-refund="${escapeHtml(item._id)}">${item.status === 'requested' ? '查看并核对' : '查看详情'}</button></td></tr>`,
       'refundsTable', 6, 'refunds');
 
     // ---- 拼团 ----
@@ -115,13 +116,8 @@
 
     // ---- 素材 ----
     paginateRows(state.media.filter((item) => !global.__mediaKeyword || String(item.name || '').toLowerCase().includes(global.__mediaKeyword)), (item, seq) =>
-        `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.name)}${item.temporary ? ' <span class="badge warn">临时</span>' : ''}</td><td>${translateStatus(item.type)}</td><td>${translateStatus(item.source)}</td><td>${escapeHtml(item.version)}</td><td>${item.fileId ? '已上传' : '缺少文件'}</td><td class="col-action"><button data-preview-media="${escapeHtml(item._id)}">预览</button> <button data-version-media="${escapeHtml(item._id)}">新建版本</button></td></tr>`,
+        `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${escapeHtml(item.name)}${item.temporary ? ' <span class="badge warn">临时</span>' : ''}</td><td>${translateStatus(item.type)}</td><td>${translateStatus(item.source)}</td><td>${escapeHtml(item.version)}</td><td>${item.fileId ? '已上传' : '缺少文件'}</td><td class="col-action"><button data-preview-media="${escapeHtml(item._id)}">预览</button> <button data-edit-media-metadata="${escapeHtml(item._id)}">改资料</button> <button data-version-media="${escapeHtml(item._id)}">新建版本</button></td></tr>`,
       'mediaTable', 6, 'media');
-
-    // ---- 操作记录 ----
-    paginateRows(state.audit, (item, seq) =>
-      `<tr><td class="col-idx" style="text-align:center">${seq}</td><td>${formatDate(item.createdAt)}</td><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.targetType)} / ${escapeHtml(item.targetId)}</td><td>${escapeHtml(item.actorId || 'system')}</td></tr>`,
-      'auditTable', 4, 'audit');
 
   }
 

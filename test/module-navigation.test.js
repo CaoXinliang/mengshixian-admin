@@ -12,7 +12,7 @@ const registry = context.window.MengshixianAdminPages;
 assert.deepEqual(Array.from(registry.groups, (group) => group.label), [
   '工作台', '商品中心', '订单中心', '库存配送', '客户中心', '内容运营', '营销中心', '系统管理'
 ]);
-assert.equal(Object.keys(registry.pages).length, 22, '22 个真实业务页面必须继续独立存在');
+assert.equal(Object.keys(registry.pages).length, 23, '开店检查及原有业务页面必须继续独立存在');
 
 for (const page of Object.values(registry.pages)) {
   const html = read(page.href);
@@ -26,10 +26,14 @@ for (const page of Object.values(registry.pages)) {
   } else {
     assert.match(html, /admin-page-registry\.js[\s\S]*admin-forms\.js[\s\S]*admin-shell\.js[\s\S]*admin-tables\.js[\s\S]*admin-page-summary\.js[\s\S]*app\.js/, `${page.href} 必须按顺序加载共享模块`);
   }
+  if (page.id === 'openingCheck') assert.match(html, /app\.js[\s\S]*admin-opening-check\.js/, '开店检查业务逻辑必须在独立模块中');
   assert.equal((html.match(/<nav id="mainNav"/g) || []).length, 0, `${page.href} 不得重复维护侧栏导航`);
   if (page.id === 'access') {
     assert.match(html, /id="staffPage"[\s\S]*admin-staff-page\.js[\s\S]*app\.js/, '账号页应使用独立工作人员模块');
     assert.doesNotMatch(html, /id="adminUserForm"|name="roleIds"/, '账号页不得恢复旧角色编号表单');
+  } else if (page.id === 'audit') {
+    assert.match(html, /id="auditTimeline"[\s\S]*admin-audit-timeline\.js[\s\S]*app\.js/, '操作记录应使用独立时间轴模块');
+    assert.doesNotMatch(html, /id="auditTable"/, '操作记录主界面不再显示内部编号表格');
   } else if (!['productWorkflow', 'productReview'].includes(page.id)) {
     assert.match(html, /<div class="hidden-forms"><\/div>/, `${page.href} 必须从共享模块装载通用编辑表单`);
   }

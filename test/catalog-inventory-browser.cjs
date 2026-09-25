@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 
-module.exports = async function catalogInventoryBrowser({ fixture, send, evaluate, pause, waitFor, productCode }) {
+module.exports = async function catalogInventoryBrowser({ fixture, send, evaluate, pause, waitFor, productCode, loseNextInventoryReply }) {
   const warehouseName = '仅本地演示补货仓';
   const warehouseCode = 'LOCAL-CATALOG-INVENTORY-10';
   const products = (await fixture.call('admin.products.list', { pageSize: 100 })).rows;
@@ -54,7 +54,30 @@ module.exports = async function catalogInventoryBrowser({ fixture, send, evaluat
     .filter((row) => row.warehouseId === warehouse._id && row.skuId === sku._id);
   assert.equal((await inventoryRows()).length, 0, '取消确认不能写入演示库存');
 
+  loseNextInventoryReply();
   await evaluate("window.confirm = () => true; document.querySelector('#inventoryForm').requestSubmit()");
+  await waitFor("document.querySelector('#globalMessage')?.textContent.includes('本地模拟：库存已记账，但成功回执丢失')");
+  assert.match(await evaluate("document.querySelector('#inventoryGuideReminder').textContent"), /成功回执丢失[\s\S]*重新提交/,
+    '库存回执不明时，弹窗内必须说明可安全重试');
+  await send('Page.navigate', { url: 'http://127.0.0.1:8765/inventory.html' });
+  await waitFor(`Array.from(document.querySelector('#inventoryWarehouseChoice')?.options || []).some(option => option.textContent.includes(${JSON.stringify(warehouseName)})) && Array.from(document.querySelector('#inventorySkuChoice')?.options || []).some(option => option.textContent.includes(${JSON.stringify(product.name)}))`);
+  await evaluate(`(() => {
+    document.querySelector('[data-add-form="#inventoryForm"]').click();
+    const choose = (selector, label) => {
+      const select = document.querySelector(selector);
+      const match = [...select.options].filter(option => option.textContent.includes(label));
+      if (match.length !== 1) throw new Error('库存重试时名称不是唯一选项：' + label);
+      select.selectedIndex = match[0].index;
+      select.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    choose('#inventoryWarehouseChoice', ${JSON.stringify(warehouseName)});
+    choose('#inventorySkuChoice', ${JSON.stringify(product.name + ' · ' + sku.specName)});
+    const form = document.querySelector('#inventoryForm');
+    form.elements.change.value = '10';
+    form.elements.reason.value = '仅本地测试补货10件，非甲方真实库存';
+    window.confirm = () => true;
+    form.requestSubmit();
+  })()`);
   await waitFor("document.querySelector('#globalMessage')?.textContent.includes('库存已调整并写入流水')");
   let rows = await inventoryRows();
   for (let attempt = 0; attempt < 20 && rows.length === 0; attempt++) {
@@ -62,8 +85,8 @@ module.exports = async function catalogInventoryBrowser({ fixture, send, evaluat
     rows = await inventoryRows();
   }
   assert.equal(rows.length, 1, '确认后同仓同规格应有一条实际库存记录');
-  assert.equal(rows[0].onHand, 10);
+  assert.equal(rows[0].onHand, 10, '回执丢失后重试不能重复增加同一笔库存');
   assert.equal(rows[0].reserved, 0);
   assert.equal(rows[0].available, 10, '本地演示补货后可售库存为10');
-  console.log('Same delivered product: named local warehouse -> name-selected SKU -> cancel zero writes -> confirmed local inventory available 10');
+  console.log('Same delivered product: named local warehouse -> name-selected SKU -> lost reply and browser reopen retry -> local inventory remains available 10');
 };

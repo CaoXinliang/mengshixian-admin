@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="admin-shell.css">
   <link rel="stylesheet" href="admin-page-summary.css">
+  <link rel="stylesheet" href="admin-domain-pages.css">
   <link rel="stylesheet" href="admin-operation-forms.css">
 </head>
 <body>
@@ -16,8 +17,10 @@
     <section class="workspace">
       <header class="workspace-head" id="adminHeader"></header>
       <p class="notice" id="globalMessage" aria-live="polite"></p>
-      <section class="panel is-active" data-panel="pricing">
-        <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>SKU</th><th>范围</th><th>价格</th><th>端</th><th>状态</th><th class="col-action">操作</th></tr></thead><tbody id="pricesTable"></tbody></table></div>
+      <section class="panel is-active domain-panel operation-panel" data-panel="pricing">
+        <div class="operation-task"><div><p class="eyebrow">商品 · 价格</p><h2>按销售规格核对价格</h2><p>先选商品规格和适用顾客，再录入已确认的价格。个人价与企业价不自动合并，最终成交价由服务端计算。</p></div><aside><strong>保存前确认影响范围</strong><span>未拿到真实价格时不要编造；价格规则的修改不应改动已经成立的历史订单。</span><a href="product-review.html">查看上架前核对 →</a></aside></div>
+        <h3 class="operation-records-title">已有价格规则</h3>
+        <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>销售规格</th><th>适用顾客</th><th>价格</th><th>适用端</th><th>状态</th><th class="col-action">操作</th></tr></thead><tbody id="pricesTable"></tbody></table></div>
       </section>
       <div class="hidden-forms"></div>
     </section>

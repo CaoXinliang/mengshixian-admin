@@ -1,0 +1,6 @@
+.refund-review-dialog{width:min(780px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;border:1px solid #c9dcec;border-radius:14px;padding:24px;background:#fff;color:#213e5d;box-shadow:0 22px 60px #14365838}
+.refund-review-dialog::backdrop{background:#10263b99}
+.refund-review-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.refund-review-head h2{margin:0;font-size:22px}.refund-review-head button{font-size:24px;border:0;background:transparent;cursor:pointer}
+.refund-review-detail{padding:16px;border-radius:10px;background:#f1f6fc}.refund-review-detail p{margin:8px 0}.refund-review-detail strong{display:inline-block;min-width:8em;color:#526b83}.refund-review-detail ul{margin:8px 0;padding-left:22px}
+.refund-review-warning{padding:12px;border-left:4px solid #d39035;background:#fff8ed;color:#685028}.refund-review-confirm{display:flex;align-items:flex-start;gap:8px;margin:12px 0}.refund-review-confirm input{width:auto;margin:4px 0 0}
+.refund-review-actions{display:flex;justify-content:flex-end;gap:10px}.refund-review-actions button:disabled{cursor:not-allowed;opacity:.5}

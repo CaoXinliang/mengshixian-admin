@@ -16,17 +16,24 @@
   };
   const icon = (id) => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[id]}</svg>`;
 
-  const nav = registry.groups.map((group) => {
-    const active = group.id === page.groupId;
+  const advancedPageIds = new Set(['categories', 'pricing', 'warehouses', 'banners', 'sections', 'businesses', 'users', 'groups', 'access', 'audit']);
+  const primaryGroups = registry.groups.map((group) => ({ ...group, pages: group.pages.filter(([id]) => !advancedPageIds.has(id)) })).filter((group) => group.pages.length);
+  const advancedGroups = registry.groups.map((group) => ({ ...group, pages: group.pages.filter(([id]) => advancedPageIds.has(id)) })).filter((group) => group.pages.length);
+  const navGroup = (group, section) => {
+    const active = group.pages.some(([id]) => id === page.id);
     const first = group.pages[0];
-    const children = group.pages.length > 1 ? `<div class="nav-children" id="nav-${group.id}">${group.pages.map(([id, title, href]) => `<a href="${href}"${id === page.id ? ' class="is-active" aria-current="page"' : ''}>${title}</a>`).join('')}</div>` : '';
+    const children = group.pages.length > 1 ? `<div class="nav-children" id="nav-${section}-${group.id}">${group.pages.map(([id, title, href]) => `<a href="${href}"${id === page.id ? ' class="is-active" aria-current="page"' : ''}>${title}</a>`).join('')}</div>` : '';
     return `<div class="nav-group${active ? ' is-open' : ''}"><a class="nav-parent${active ? ' is-active' : ''}" href="${first[2]}"${active && group.pages.length === 1 ? ' aria-current="page"' : ''}><span class="module-mark" aria-hidden="true">${icon(group.id)}</span><strong>${group.label}</strong>${children ? '<span class="arrow" aria-hidden="true">›</span>' : ''}</a>${children}</div>`;
-  }).join('');
+  };
+  const primaryNav = primaryGroups.map((group) => navGroup(group, 'daily')).join('');
+  const advancedNav = advancedGroups.length ? `<details class="sidebar-advanced"${advancedPageIds.has(page.id) ? ' open' : ''}><summary>高级管理</summary><div class="sidebar-advanced-list">${advancedGroups.map((group) => navGroup(group, 'advanced')).join('')}</div></details>` : '';
+  const nav = primaryNav + advancedNav;
 
   sidebar.innerHTML = `<a class="brand" href="index.html"><img src="assets/logo.png" alt="" class="brand-logo"><span><strong>梦食鲜</strong><small>经营管理后台</small></span></a><p class="nav-caption">经营中枢</p><nav id="mainNav" aria-label="后台业务模块">${nav}</nav><div class="sidebar-footer"><button class="logout" id="logoutButton" type="button">退出登录</button></div>`;
   header.innerHTML = `<div class="header-title"><p class="eyebrow" id="moduleEyebrow"></p><h2 id="panelTitle"></h2></div><div class="workspace-actions"><label class="header-search"><span class="sr-only">搜索后台页面</span><input id="adminPageSearch" list="adminPageOptions" placeholder="搜索后台页面" autocomplete="off"></label><datalist id="adminPageOptions">${Object.values(registry.pages).map((item) => `<option value="${item.title}"></option>`).join('')}</datalist><span class="service-state" id="adminConnectionState"><i></i>连接中</span><span class="admin-user" id="adminUser" aria-live="polite">身份待验证</span><button class="admin-account-logout" id="adminAccountLogout" type="button">退出登录</button></div>`;
   if (page.id !== 'overview') {
-    const siblings = registry.groups.find((group) => group.id === page.groupId).pages;
+    const sectionGroups = advancedPageIds.has(page.id) ? advancedGroups : primaryGroups;
+    const siblings = sectionGroups.find((group) => group.pages.some(([id]) => id === page.id)).pages;
     const links = siblings.length > 1 ? `<nav aria-label="${page.groupLabel}页面" class="page-links">${siblings.map(([id, title, href]) => `<a href="${href}"${id === page.id ? ' aria-current="page"' : ''}>${title}</a>`).join('')}</nav>` : '';
     document.getElementById('globalMessage').insertAdjacentHTML('afterend', `<div class="page-intro"><div><p class="eyebrow">${page.groupLabel}</p><h1>${page.title}</h1><p>${page.description}</p></div>${links}</div>`);
   }

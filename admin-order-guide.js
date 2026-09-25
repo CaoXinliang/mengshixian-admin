@@ -53,7 +53,8 @@
       const cells = tr.querySelectorAll('td');
       if (cells.length < (kind === 'orders' ? 8 : 7)) {
         const hint = tr.querySelector('.empty-hint');
-        if (hint) hint.textContent = '可调整上方筛选条件，或等待新记录。';
+        const filtered = kind === 'orders' ? Boolean(global.__orderFilters?.status || global.__orderFilters?.keyword) : Boolean(byId('refundGuideStatus')?.value);
+        if (hint && filtered) hint.textContent = '没有符合当前筛选条件的记录，请调整或重置筛选。';
         return;
       }
       const row = lookup.get(cells[1].textContent.trim());

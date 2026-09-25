@@ -17,16 +17,13 @@
       <header class="workspace-head" id="adminHeader"></header>
       <p class="notice" id="globalMessage" aria-live="polite"></p>
       <section class="panel is-active" data-panel="overview">
-        <div class="overview-intro"><div><h3>今天的经营事项，都在这里</h3><p>待办和业务记录直接进入对应页面处理。</p></div><time id="overviewDate"></time></div>
-        <div class="task-grid" id="taskMetrics"></div>
+        <div class="overview-intro"><div><p class="eyebrow">运营工作台</p><h1>先处理今天要紧的事</h1><p>只显示本次接口查到的事项；首次营业请先做<a href="opening-check.html">开店检查</a>。</p></div><time id="overviewDate"></time></div>
+        <div class="task-grid" id="taskMetrics" aria-label="重点待办状态"></div>
         <div class="overview-layout">
-          <section class="overview-section" aria-labelledby="recentOrdersTitle"><div class="overview-section-head"><h3 id="recentOrdersTitle">最近订单</h3><a href="orders.html">查看订单</a></div><div class="table-wrap"><table><thead><tr><th>订单号</th><th>收货人</th><th>金额</th><th>状态</th><th>下单时间</th></tr></thead><tbody id="overviewOrders"></tbody></table></div></section>
-          <section class="overview-section overview-queue" aria-labelledby="queueTitle"><div class="overview-section-head"><h3 id="queueTitle">待处理队列</h3><a href="audit.html">操作记录</a></div><div id="overviewQueue" class="overview-queue-list"></div></section>
+          <section class="overview-section overview-daily" aria-labelledby="quickLinksTitle"><div class="overview-section-head"><div><p class="eyebrow">日常路径</p><h2 id="quickLinksTitle">接下来做什么</h2></div></div><div class="overview-shortcuts"><a href="imports.html"><span>01 · 商品</span><strong>导入与补齐资料</strong><small>表格先存草稿，上架前逐件核对</small></a><a href="orders.html"><span>02 · 订单</span><strong>履约与登记收款</strong><small>配送与收款分别处理</small></a><a href="media.html"><span>03 · 素材</span><strong>上传、预览、关联</strong><small>先入库，再选择商品用途</small></a><a href="opening-check.html"><span>04 · 配送</span><strong>检查开店条件</strong><small>区域、时段、运费与仓库</small></a></div></section>
+          <section class="overview-section overview-queue" aria-labelledby="queueTitle"><div class="overview-section-head"><div><p class="eyebrow">当前记录</p><h2 id="queueTitle">今日待办</h2></div><a href="audit.html">操作记录</a></div><div id="overviewQueue" class="overview-queue-list" aria-live="polite"></div><p class="overview-queue-limit">上传失败尚无统一任务接口；请在素材上传页查看本次失败提示。</p></section>
         </div>
-        <section class="overview-section" aria-labelledby="quickLinksTitle"><div class="overview-section-head"><h3 id="quickLinksTitle">常用入口</h3></div><div class="overview-shortcuts"><a href="products.html">管理商品</a><a href="inventory.html">核对库存</a><a href="banners.html">管理轮播图</a><a href="businesses.html">审核企业</a></div></section>
-        <h3 class="section-title" style="margin-top:24px">当前加载的数据</h3>
-        <p class="overview-caption">以下数字来自本次后台接口加载的记录，刷新页面可重新核对。</p>
-        <div class="metric-grid" id="metrics"></div>
+        <details class="overview-secondary"><summary>查看最近订单与数据概览</summary><section class="overview-section" aria-labelledby="recentOrdersTitle"><div class="overview-section-head"><h2 id="recentOrdersTitle">最近订单</h2><a href="orders.html">查看订单</a></div><div class="table-wrap"><table><thead><tr><th>订单号</th><th>收货人</th><th>金额</th><th>状态</th><th>下单时间</th></tr></thead><tbody id="overviewOrders"></tbody></table></div></section><p class="overview-caption">以下只统计本次成功读取的记录，不能当作全店报表。</p><div class="metric-grid" id="metrics"></div></details>
       </section>
       <div class="hidden-forms"></div>
     </section>

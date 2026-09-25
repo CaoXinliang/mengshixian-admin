@@ -6,13 +6,10 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '..');
 const script = fs.readFileSync(path.join(root, 'admin-inventory-guide.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'inventory.html'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 assert.match(html, /admin-inventory-guide\.css/);
 assert.match(html, /app\.js"><\/script>[\s\S]*admin-inventory-guide\.js/);
 assert.match(html, /id="inventoryKeyword"/);
 assert.doesNotMatch(script, /admin\.inventory\.adjust/, '引导脚本不得接管库存写入');
-assert.match(app, /admin\.inventory\.adjust[^\n]*warehouseId: form\.get\('warehouseId'\)[^\n]*skuId: form\.get\('skuId'\)[^\n]*idempotencyKey: newIdempotencyKey\(\)/,
-  '库存写入必须继续由原表单生成幂等键');
 
 class Element {
   constructor(tag = 'div') {
@@ -62,6 +59,9 @@ const globalMessage = new Element('p');
 const original = new Element();
 const matches = new Element();
 const rows = new Element();
+const emptyResults = new Element();
+const emptyTitle = new Element();
+const emptyHint = new Element();
 const elements = {
   inventoryForm: form,
   inventoryKeyword: keyword,
@@ -69,7 +69,10 @@ const elements = {
   globalMessage,
   inventoryOriginalTable: original,
   inventoryMatches: matches,
-  inventoryMatchRows: rows
+  inventoryMatchRows: rows,
+  inventoryGuideEmpty: emptyResults,
+  inventoryGuideEmptyTitle: emptyTitle,
+  inventoryGuideEmptyHint: emptyHint
 };
 let opened = 0;
 const document = {
@@ -117,6 +120,12 @@ async function main() {
   assert.equal(missingName.canAdjust, false, '找不到商品名称时不提供调整入口');
   assert.match(status.textContent, /共有 1 条/);
   assert.match(rows.children[0].children[0].textContent, /鲜虾仁 · 500克/);
+  assert.equal(emptyResults.hidden, true);
+
+  keyword.value = '不存在';
+  keyword.handlers.input();
+  assert.equal(emptyResults.hidden, false);
+  assert.match(emptyTitle.textContent, /没有找到对应库存/);
 
   keyword.value = '虾仁';
   keyword.handlers.input();

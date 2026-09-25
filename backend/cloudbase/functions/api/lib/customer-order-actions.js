@@ -2,7 +2,7 @@ const { fail } = require('./response');
 const { encryptText } = require('./security');
 const { audienceVisible, buildQuote, createOrder, cancelOrder, confirmWechatPayment, orderReservations, consumeReservation } = require('./commerce');
 const { assertTransition } = require('./order-state');
-const { requestRefund, reviewRefund, confirmRefund } = require('./refunds');
+const { requestRefund, reviewRefund, refundReviewToken, confirmRefund } = require('./refunds');
 const { nowIso, string, integer, pageParams, pick, publicProduct, publicSku, maskedPhone, safeAddress, safeOrder, safeOrderItem } = require('./api-values');
 
 function createCustomerOrderActions({ store, piiEncryptionKey, paymentPreparer, paymentVerifier, refundVerifier, demoMode, clock, audit, getAdmin, ensureWechatUser }) {
@@ -213,9 +213,24 @@ function createCustomerOrderActions({ store, piiEncryptionKey, paymentPreparer, 
 
   async function adminReviewRefund(payload) {
     const { admin } = await getAdmin(payload, 'refunds.write');
-    const result = await reviewRefund({ store, admin, payload, now: clock() });
-    await audit(admin, 'refunds.review', 'refund', result.refund._id, { status: result.refund.status, decision: payload.decision });
+    const result = await reviewRefund({ store, admin, payload, now: clock(), audit });
     return { refund: pick(result.refund, ['_id', 'refundNo', 'orderId', 'amountCent', 'currency', 'reason', 'status', 'reviewNote', 'reviewedAt']) };
+  }
+
+  async function adminRefundReviewDetail(payload) {
+    await getAdmin(payload, 'refunds.read');
+    const id = string(payload.id, '退款申请 ID', { required: true, max: 80 });
+    const refund = await store.findOne('refunds', { _id: id });
+    if (!refund) fail('REFUND_NOT_FOUND', '退款申请不存在。');
+    const order = await store.findOne('orders', { _id: refund.orderId });
+    if (!order) fail('ORDER_NOT_FOUND', '原订单不存在，不能核对退款。');
+    return {
+      refund: pick(refund, ['_id', 'refundNo', 'orderId', 'amountCent', 'reason', 'status', 'createdAt']),
+      order: { ...pick(order, ['orderNo', 'status', 'paymentMethod', 'paymentStatus', 'totalAmountCent', 'refundedAmountCent']),
+        availableRefundCent: Math.max(0, Number(order.totalAmountCent || 0) - Number(order.refundedAmountCent || 0)),
+        items: (order.itemsSnapshot || []).map((item) => pick(item, ['productNameSnapshot', 'specSnapshot', 'packageUnitSnapshot', 'quantity', 'unitPriceCent', 'subtotalCent'])) },
+      reviewToken: refundReviewToken(refund, order)
+    };
   }
 
   async function refundNotify(payload) {
@@ -229,6 +244,6 @@ function createCustomerOrderActions({ store, piiEncryptionKey, paymentPreparer, 
     return result;
   }
 
-  return { userAddresses, userUpsertAddress, userDeleteAddress, userCart, userUpsertCartItem, userRemoveCartItem, checkoutQuote, userCreateOrder, userOrders, userOrder, userCancelOrder, userCompleteOrder, wechatPaymentNotify, userPreparePayment, userRequestRefund, adminReviewRefund, refundNotify };
+  return { userAddresses, userUpsertAddress, userDeleteAddress, userCart, userUpsertCartItem, userRemoveCartItem, checkoutQuote, userCreateOrder, userOrders, userOrder, userCancelOrder, userCompleteOrder, wechatPaymentNotify, userPreparePayment, userRequestRefund, adminReviewRefund, adminRefundReviewDetail, refundNotify };
 }
 module.exports = { createCustomerOrderActions };

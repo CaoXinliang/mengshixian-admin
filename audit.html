@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="admin-shell.css">
   <link rel="stylesheet" href="admin-page-summary.css">
+  <link rel="stylesheet" href="admin-audit-timeline.css">
 </head>
 <body>
   <main class="admin-shell" id="adminShell">
@@ -16,7 +17,13 @@
       <header class="workspace-head" id="adminHeader"></header>
       <p class="notice" id="globalMessage" aria-live="polite"></p>
       <section class="panel is-active" data-panel="audit">
-        <div class="table-wrap"><table><thead><tr><th class="col-idx">序号</th><th>时间</th><th>操作</th><th>对象</th><th>操作人</th></tr></thead><tbody id="auditTable"></tbody></table></div>
+        <div class="audit-heading">
+          <div><p class="eyebrow">后台事项追溯</p><h3>最近发生了什么</h3><p>按时间从近到远查看。名称取自已有记录；找不到的资料会如实标明。</p></div>
+          <span id="auditCount" class="audit-count" aria-live="polite">正在读取…</span>
+        </div>
+        <p id="auditFeedback" class="audit-feedback" role="status" aria-live="polite">正在读取操作记录…</p>
+        <ol id="auditTimeline" class="audit-timeline" aria-label="按时间排序的操作记录"></ol>
+        <div class="audit-more"><button id="auditLoadMore" type="button" hidden>查看更早记录</button></div>
       </section>
       <div class="hidden-forms"></div>
     </section>
@@ -45,6 +52,7 @@
   <script src="admin-shell.js"></script>
   <script src="admin-tables.js"></script>
   <script src="admin-page-summary.js"></script>
+  <script src="admin-audit-timeline.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

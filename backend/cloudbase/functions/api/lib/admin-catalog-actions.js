@@ -230,9 +230,12 @@ function createAdminCatalogActions({ store, storageUploader, clock, audit, getAd
     return item;
   }
 
-  function mediaPatch(payload, timestamp) {
+  function mediaMetadataPatch(payload, timestamp) {
     const targetPlatforms = Array.isArray(payload.targetPlatforms) ? [...new Set(payload.targetPlatforms.map((item) => string(item, '适用端', { required: true, max: 20 })))].slice(0, 8) : ['miniapp', 'web'];
     if (!targetPlatforms.length || targetPlatforms.some((item) => !['miniapp', 'web'].includes(item))) fail('VALIDATION_ERROR', '素材适用端只支持 miniapp、web，且至少选择一个。');
+    const source = ['client', 'ai_generated', 'demo', 'admin_upload'].includes(payload.source) ? payload.source : 'admin_upload';
+    const temporary = payload.temporary === true;
+    if (['ai_generated', 'demo'].includes(source) && !temporary) fail('VALIDATION_ERROR', 'AI 生成或演示素材必须标记为临时素材。');
     const startAt = string(payload.startAt, '素材开始时间', { max: 40 });
     const endAt = string(payload.endAt, '素材结束时间', { max: 40 });
     if (startAt && Number.isNaN(new Date(startAt).getTime())) fail('VALIDATION_ERROR', '素材开始时间不合法。');
@@ -240,17 +243,8 @@ function createAdminCatalogActions({ store, storageUploader, clock, audit, getAd
     if (startAt && endAt && new Date(startAt).getTime() > new Date(endAt).getTime()) fail('VALIDATION_ERROR', '素材结束时间不能早于开始时间。');
     return {
       name: string(payload.name, '素材名称', { required: true, max: 100 }),
-      assetKey: string(payload.assetKey, '素材业务键', { max: 100 }),
-      type: ['image', 'video'].includes(payload.type) ? payload.type : 'image',
-      fileId: string(payload.fileId, '云存储文件 ID', { required: true, max: 300 }),
-      thumbnailFileId: string(payload.thumbnailFileId, '缩略图文件 ID', { max: 300 }),
-      coverFileId: string(payload.coverFileId, '视频封面文件 ID', { max: 300 }),
-      source: ['client', 'ai_generated', 'demo', 'admin_upload'].includes(payload.source) ? payload.source : 'admin_upload',
-      temporary: payload.temporary === true,
-      checksum: string(payload.checksum, '素材校验值', { max: 128 }),
-      mimeType: string(payload.mimeType, '素材类型', { max: 80 }),
-      sizeBytes: integer(payload.sizeBytes, 0),
-      enabled: payload.enabled !== false,
+      source,
+      temporary,
       startAt,
       endAt,
       targetPlatforms,
@@ -258,23 +252,66 @@ function createAdminCatalogActions({ store, storageUploader, clock, audit, getAd
     };
   }
 
+  function mediaPatch(payload, timestamp) {
+    return {
+      ...mediaMetadataPatch(payload, timestamp),
+      assetKey: string(payload.assetKey, '素材业务键', { max: 100 }),
+      type: ['image', 'video'].includes(payload.type) ? payload.type : 'image',
+      fileId: string(payload.fileId, '云存储文件 ID', { required: true, max: 300 }),
+      thumbnailFileId: string(payload.thumbnailFileId, '缩略图文件 ID', { max: 300 }),
+      coverFileId: string(payload.coverFileId, '视频封面文件 ID', { max: 300 }),
+      checksum: string(payload.checksum, '素材校验值', { max: 128 }),
+      mimeType: string(payload.mimeType, '素材类型', { max: 80 }),
+      sizeBytes: integer(payload.sizeBytes, 0),
+      enabled: payload.enabled !== false
+    };
+  }
+
+  async function requireVerifiedDirectFile(fileId) {
+    const upload = await store.findOne('admin_media_uploads', { fileId, mode: 'direct' });
+    if (upload && upload.status !== 'complete') {
+      fail('MEDIA_UPLOAD_INCOMPLETE', '大视频尚未通过云端文件校验，不能登记或替换素材。');
+    }
+  }
+
   async function adminUpsertMedia(payload) {
     const { admin } = await getAdmin(payload, 'media.write');
-    const timestamp = nowIso(clock);
-    const patch = mediaPatch(payload, timestamp);
-    let asset;
     if (payload.id) {
       const id = string(payload.id, '素材 ID', { max: 80 });
       const existing = await store.findOne('media_assets', { _id: id });
       if (!existing) fail('MEDIA_NOT_FOUND', '素材不存在。');
-      if (existing.fileId !== patch.fileId) fail('MEDIA_VERSION_REQUIRED', '素材文件不可覆盖，请使用“新建版本”保留历史素材。');
-      await store.update('media_assets', id, patch);
-      asset = { ...existing, ...patch, _id: id, version: integer(existing.version, 1) };
-    } else {
-      asset = await store.create('media_assets', { ...patch, version: 1, createdBy: admin._id, createdAt: timestamp });
+      if (existing.fileId !== payload.fileId) fail('MEDIA_VERSION_REQUIRED', '素材文件不可覆盖，请使用“新建版本”保留历史素材。');
+      fail('MEDIA_METADATA_UPDATE_REQUIRED', '已有素材请使用“改资料”并核对最新内容；替换文件请使用“新建版本”。');
     }
+    const timestamp = nowIso(clock);
+    const patch = mediaPatch(payload, timestamp);
+    await requireVerifiedDirectFile(patch.fileId);
+    const asset = await store.create('media_assets', { ...patch, version: 1, metadataRevision: 0, createdBy: admin._id, createdAt: timestamp });
     await audit(admin, 'media.upsert', 'media_asset', asset._id, { name: asset.name, temporary: asset.temporary, source: asset.source });
     return asset;
+  }
+
+  async function adminUpdateMediaMetadata(payload) {
+    const { admin } = await getAdmin(payload, 'media.write');
+    const id = string(payload.id, '素材 ID', { required: true, max: 80 });
+    const immutable = ['fileId', 'type', 'version', 'checksum', 'mimeType', 'sizeBytes', 'thumbnailFileId', 'coverFileId', 'previousMediaAssetId', 'assetKey', 'enabled', 'replacesMediaAssetId'];
+    if (immutable.some((field) => Object.prototype.hasOwnProperty.call(payload, field))) fail('VALIDATION_ERROR', '此处只能修改素材资料；替换文件请使用“新建版本”。');
+    if (payload.targetPlatforms !== undefined && !Array.isArray(payload.targetPlatforms)) fail('VALIDATION_ERROR', '素材适用端格式不正确，请重新选择。');
+    if (payload.temporary !== undefined && typeof payload.temporary !== 'boolean') fail('VALIDATION_ERROR', '临时素材状态格式不正确。');
+    if (!Number.isSafeInteger(payload.metadataRevision) || payload.metadataRevision < 0) fail('VALIDATION_ERROR', '素材资料版本缺失，请刷新列表后重试。');
+    if (typeof store.runTransaction !== 'function') fail('TRANSACTION_NOT_AVAILABLE', '当前环境不能安全修改素材资料。');
+    const result = await store.runTransaction(async (tx) => {
+      const existing = await tx.getById('media_assets', id);
+      if (!existing) fail('MEDIA_NOT_FOUND', '素材不存在。');
+      if (payload.metadataRevision !== integer(existing.metadataRevision, 0)) fail('MEDIA_METADATA_CONFLICT', '素材资料已被其他人修改，请刷新列表并重新核对后再保存。');
+      const source = payload.source === undefined ? existing.source : payload.source;
+      if (!['client', 'ai_generated', 'demo', 'admin_upload'].includes(source)) fail('VALIDATION_ERROR', '请选择真实的素材来源，不能自动改成其他来源。');
+      const patch = { ...mediaMetadataPatch({ ...existing, ...payload }, nowIso(clock)), metadataRevision: payload.metadataRevision + 1 };
+      await tx.update('media_assets', id, patch);
+      await audit(admin, 'media.metadata.update', 'media_asset', id, { before: { name: existing.name, source: existing.source, temporary: existing.temporary, targetPlatforms: existing.targetPlatforms, startAt: existing.startAt, endAt: existing.endAt }, after: patch }, tx);
+      return { before: existing, after: { ...existing, ...patch, _id: id }, patch };
+    });
+    return result.after;
   }
 
   async function adminCreateMediaVersion(payload) {
@@ -284,10 +321,12 @@ function createAdminCatalogActions({ store, storageUploader, clock, audit, getAd
     if (!existing) fail('MEDIA_NOT_FOUND', '被替换素材不存在。');
     const timestamp = nowIso(clock);
     const patch = mediaPatch(payload, timestamp);
+    await requireVerifiedDirectFile(patch.fileId);
     if (existing.fileId === patch.fileId) fail('MEDIA_VERSION_SAME_FILE', '新版本必须使用不同的云存储文件。');
     const asset = await store.create('media_assets', {
       ...patch,
       version: integer(existing.version, 1) + 1,
+      metadataRevision: 0,
       previousMediaAssetId: existing._id,
       createdBy: admin._id,
       createdAt: timestamp
@@ -425,6 +464,6 @@ function createAdminCatalogActions({ store, storageUploader, clock, audit, getAd
     return { ...result, productCode, skuCode: sku ? sku.skuCode : '', coverUpdated: payload.role === 'cover' };
   }
 
-  return { validateMediaReference, adminUpsertCategory, adminUpsertProduct, adminUpsertSku, adminSetProductStatus, adminSetSkuStatus, adminUpsertContent, adminUpsertMedia, adminCreateMediaVersion, adminListProductMedia, adminUpsertProductMedia, adminUploadMedia, stageImport, approveImport, activateImportBatch, previewImport, linkMediaByCode };
+  return { validateMediaReference, adminUpsertCategory, adminUpsertProduct, adminUpsertSku, adminSetProductStatus, adminSetSkuStatus, adminUpsertContent, adminUpsertMedia, adminUpdateMediaMetadata, adminCreateMediaVersion, adminListProductMedia, adminUpsertProductMedia, adminUploadMedia, stageImport, approveImport, activateImportBatch, previewImport, linkMediaByCode };
 }
 module.exports = { createAdminCatalogActions };

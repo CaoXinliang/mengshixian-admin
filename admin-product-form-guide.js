@@ -6,7 +6,10 @@
     select.name = name; select.required = old.required;
     old.parentElement.firstChild.textContent = label;
     select.replaceChildren(new Option(select.required ? '请选择' : '不指定', ''), ...rows.map((row) => new Option(row.label, row._id)));
-    select.value = rows.some((row) => row._id === value) ? value : '';
+    if (value && !rows.some((row) => row._id === value)) {
+      select.append(new Option(label === '商品主图' ? '原主图暂不可用，保持原关联；请核对后更换' : '原选择暂不可用，保持原关联；请核对后更换', value));
+    }
+    select.value = value;
     if (old !== select) old.replaceWith(select);
     return select;
   }

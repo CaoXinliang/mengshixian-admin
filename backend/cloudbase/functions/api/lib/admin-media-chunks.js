@@ -37,13 +37,14 @@ function createAdminMediaChunks({ store, getAdmin, audit, clock, storageUploader
     if (!Number.isSafeInteger(sizeBytes) || sizeBytes <= 4 * CHUNK_SIZE || sizeBytes > MAX_SIZE) fail('MEDIA_SIZE_INVALID', '分段上传支持大于 4 MB 且不超过 24 MB 的文件。');
     const checksum = String(payload.sha256 || '').toLowerCase();
     if (!/^[a-f0-9]{64}$/.test(checksum)) fail('MEDIA_UPLOAD_INVALID', '文件校验值不正确。');
+    const same = await store.findOne('admin_media_uploads', { adminId: admin._id, status: 'pending', checksum, sizeBytes, mimeType });
+    if (same && clock().getTime() - new Date(same.createdAt).getTime() < 60 * 60 * 1000) {
+      return { uploadId: same._id, chunkSize: CHUNK_SIZE, chunkCount: same.chunkCount, uploadedParts: Object.keys(same.parts || {}).map(Number), resumed: true };
+    }
+    const reused = await store.findOne('admin_media_uploads', { adminId: admin._id, status: 'complete', checksum, sizeBytes, mimeType });
+    if (reused && reused.fileId) return { completed: true, fileId: reused.fileId, chunkSize: CHUNK_SIZE, chunkCount: reused.chunkCount };
     const active = await store.list('admin_media_uploads', { where: { adminId: admin._id, status: 'pending' }, page: 1, pageSize: 100 });
     const recent = active.rows.filter((job) => clock().getTime() - new Date(job.createdAt).getTime() < 60 * 60 * 1000);
-    const same = recent.find((job) => job.checksum === checksum && job.sizeBytes === sizeBytes && job.mimeType === mimeType);
-    if (same) return { uploadId: same._id, chunkSize: CHUNK_SIZE, chunkCount: same.chunkCount, uploadedParts: Object.keys(same.parts || {}).map(Number), resumed: true };
-    const complete = await store.list('admin_media_uploads', { where: { adminId: admin._id, status: 'complete' }, page: 1, pageSize: 100 });
-    const reused = complete.rows.find((job) => job.checksum === checksum && job.sizeBytes === sizeBytes && job.mimeType === mimeType && job.fileId);
-    if (reused) return { completed: true, fileId: reused.fileId, chunkSize: CHUNK_SIZE, chunkCount: reused.chunkCount };
     if (recent.length >= 5) fail('MEDIA_UPLOAD_LIMIT', '正在上传的任务过多，请稍后重试。');
     const id = randomId('media');
     await store.create('admin_media_uploads', {

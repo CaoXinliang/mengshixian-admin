@@ -46,7 +46,8 @@ module.exports = async function publishFlow({fixture, evaluate, waitFor, pause, 
     unifiedCode:'123456789012345678',storefrontMediaId:'local://fixture/store',businessLicenseMediaId:'local://fixture/license',
     contactName:'本地测试',contactPhone:'13900139000'
   });
-  await fixture.call('admin.businessApplications.review', {id:application.application._id,decision:'approved',priceLevel:'b_standard'});
+  const reviewToken = (await fixture.call('admin.businessApplications.list')).rows.find((row) => row._id === application.application._id).reviewToken;
+  await fixture.call('admin.businessApplications.review', {id:application.application._id,decision:'approved',priceLevel:'b_standard',reviewToken});
   assert.equal((await business('auth.me')).user.userType, 'b');
   assert.equal((await business('catalog.products', {keyword:product.name})).rows.length, 1, '默认面向两类顾客的商品对企业可见');
   assert.deepEqual((await business('catalog.prices', {skuIds:[sku._id],channel:'miniapp'})).rows, [], '未配置企业价时不得偷用个人价');

@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const { ask, deliverySummary } = require('../admin-operation-forms');
 const state = { warehouses: [{ _id: 'private-w', name: '中心仓' }], deliveryAreas: [{ _id: 'private-a', name: '城区' }] };
-const fields = { name: '上午配送', status: 'active', warehouseId: 'private-w', deliveryAreaId: 'private-a', startTime: '09:00', endTime: '12:00' };
+const fields = { name: '上午配送', status: 'active', warehouseId: 'private-w', deliveryAreaId: 'private-a', startTime: '09:00', endTime: '12:00', validFrom: '', validTo: '', sort: '0' };
 const form = { getAttribute: () => 'deliverySlotForm', elements: Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, { value }])) };
 assert.match(deliverySummary(form, state), /城区[\s\S]*中心仓[\s\S]*09:00–12:00/);
 assert.doesNotMatch(deliverySummary(form, state), /private-/);
